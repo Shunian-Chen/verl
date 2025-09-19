@@ -34,7 +34,17 @@ class Tracking:
         logger: Dictionary of initialized logger instances for each backend.
     """
 
-    supported_backend = ["wandb", "mlflow", "swanlab", "vemlp_wandb", "tensorboard", "console", "clearml", "trackio"]
+    supported_backend = [
+        "wandb",
+        "mlflow",
+        "swanlab",
+        "vemlp_wandb",
+        "tensorboard",
+        "console",
+        "clearml",
+        "trackio",
+        "localfile",
+    ]
 
     def __init__(self, project_name, experiment_name, default_backend: str | list[str] = "console", config=None):
         if isinstance(default_backend, str):
@@ -133,6 +143,9 @@ class Tracking:
         if "clearml" in default_backend:
             self.logger["clearml"] = ClearMLLogger(project_name, experiment_name, config)
 
+        if "localfile" in default_backend:
+            self.logger["localfile"] = _LocalFileAdapter(project_name, experiment_name)
+
     def log(self, data, step, backend=None):
         for default_backend, logger_instance in self.logger.items():
             if backend is None or default_backend in backend:
@@ -230,6 +243,51 @@ class _MlflowLoggingAdapter:
 
         results = {k.replace("@", "_at_"): v for k, v in data.items()}
         mlflow.log_metrics(metrics=results, step=step)
+
+
+class _LocalFileAdapter:
+    """Append metrics to a local JSONL file for simple offline visualization.
+
+    Environment variables:
+        LOCAL_METRICS_DIR: base directory. Default: logs/verl/local_metrics
+    Directory layout:
+        <base>/<project_name>/<experiment_name>/metrics.jsonl
+    Each line is a JSON object with keys: {"step": int, <metric>: number, ...}
+    """
+
+    def __init__(self, project_name: str, experiment_name: str):
+        import json
+
+        self._json = json
+        base_dir = os.environ.get("LOCAL_METRICS_DIR", os.path.join("logs", "verl", "local_metrics"))
+        # Use safe subpaths
+        safe_project = str(project_name) if project_name is not None else "default_project"
+        safe_experiment = str(experiment_name) if experiment_name is not None else "default_experiment"
+        self.output_dir = os.path.join(base_dir, safe_project, safe_experiment)
+        os.makedirs(self.output_dir, exist_ok=True)
+        self.jsonl_path = os.path.join(self.output_dir, "metrics.jsonl")
+        # Touch file to ensure it exists
+        open(self.jsonl_path, "a").close()
+
+    def _is_number(self, v):
+        try:
+            import numpy as _np  # local import to avoid hard dependency at module import time
+
+            return isinstance(v, (int, float, _np.floating, _np.integer))
+        except Exception:
+            return isinstance(v, (int, float))
+
+    def log(self, data, step):
+        # Keep only scalar numeric values for simplicity
+        numeric_data = {k: v for k, v in data.items() if self._is_number(v)}
+        record = {"step": int(step) if step is not None else None}
+        # Replace characters that are problematic in some tools (keep as-is in JSON)
+        record.update(numeric_data)
+        try:
+            with open(self.jsonl_path, "a", encoding="utf-8") as f:
+                f.write(self._json.dumps(record, ensure_ascii=False) + "\n")
+        except Exception as e:
+            print(f"WARNING: failed to write local metrics to {self.jsonl_path}: {e}")
 
 
 def _compute_mlflow_params_from_objects(params) -> dict[str, Any]:
