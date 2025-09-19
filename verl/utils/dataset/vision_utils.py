@@ -24,7 +24,12 @@ def process_image(image: dict | Image.Image) -> Image.Image:
     if isinstance(image, Image.Image):
         return image.convert("RGB")
 
-    if "bytes" in image:
+    # 兼容直接传入原始字节的情况
+    if isinstance(image, (bytes, bytearray)):
+        image = {"bytes": image}
+
+    # 仅当是字典时才检查 'bytes' 键，避免对 bytes/str 进行成员测试导致 TypeError
+    if isinstance(image, dict) and "bytes" in image:
         assert "image" not in image, "Cannot have both `bytes` and `image`"
         image["image"] = Image.open(BytesIO(image["bytes"]))
 

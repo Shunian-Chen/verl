@@ -81,7 +81,8 @@ class FSDPCheckpointManager(BaseCheckpointManager):
         checkpoint_config: DictConfig = None,
         **kwargs,
     ):
-        if processing_class is None and "tokenizer" in kwargs:
+        if processing_class is None:
+            assert "tokenizer" in kwargs, "tokenizer or processor must be provided"
             warnings.warn(
                 "`tokenizer` is deprecated. use `processing_class` instead.", DeprecationWarning, stacklevel=2
             )
@@ -277,8 +278,7 @@ class FSDPCheckpointManager(BaseCheckpointManager):
                     pass
 
             model_config.save_pretrained(hf_config_tokenizer_path)
-            if self.processing_class is not None:
-                self.processing_class.save_pretrained(hf_config_tokenizer_path)
+            self.processing_class.save_pretrained(hf_config_tokenizer_path)
             log_with_rank(
                 f"Saved model config and tokenizer class to {os.path.abspath(hf_config_tokenizer_path)}",
                 rank=self.rank,

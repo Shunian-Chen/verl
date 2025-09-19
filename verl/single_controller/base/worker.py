@@ -22,11 +22,7 @@ from dataclasses import dataclass
 
 import ray
 
-from verl.utils.device import (
-    get_torch_device,
-    get_visible_devices_keyword,
-    is_npu_available,
-)
+from verl.utils.device import get_torch_device, get_visible_devices_keyword
 
 from .decorator import Dispatch, Execute, register
 
@@ -240,8 +236,7 @@ class Worker(WorkerHelper):
             # environment variable for each actor, unless
             # RAY_EXPERIMENTAL_NOSET_*_VISIBLE_DEVICES is set,
             # so we need to set local rank when the flag is set.
-            device_name = "NPU" if is_npu_available else "GPU"
-            local_rank = ray.get_runtime_context().get_accelerator_ids()[device_name][0]
+            local_rank = os.environ.get("RAY_LOCAL_RANK")
             os.environ["LOCAL_RANK"] = local_rank
             get_torch_device().set_device(int(local_rank))
 

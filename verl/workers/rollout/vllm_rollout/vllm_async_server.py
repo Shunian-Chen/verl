@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import asyncio
 import logging
 import os
 import pickle
@@ -36,6 +35,7 @@ from vllm.v1.engine.async_llm import AsyncLLM
 from vllm.v1.executor.abstract import Executor
 from vllm.worker.worker_base import WorkerWrapperBase
 
+from verl.third_party.vllm import VLLM_SLEEP_LEVEL
 from verl.utils import hf_processor
 from verl.utils.fs import copy_to_local
 from verl.workers.rollout.async_server import AsyncServerBase, TokenOutput
@@ -317,8 +317,8 @@ class AsyncvLLMServer(AsyncServerBase):
 
         # VERL_VLLM_ZMQ_ADDRESSES
         if engine_args.distributed_executor_backend == ExternalZeroMQDistributedExecutor:
-            self.workers = _get_model_runner_workers(vllm_config=vllm_config, init_ray=False)
-            zmq_addresses = ray.get([worker.get_zeromq_address.remote() for worker in self.workers])
+            workers = _get_model_runner_workers(vllm_config=vllm_config, init_ray=False)
+            zmq_addresses = ray.get([worker.get_zeromq_address.remote() for worker in workers])
             print(f"VERL_VLLM_ZMQ_ADDRESSES: {zmq_addresses}")
             os.environ["VERL_VLLM_ZMQ_ADDRESSES"] = ",".join(zmq_addresses)
 
@@ -350,7 +350,6 @@ class AsyncvLLMServer(AsyncServerBase):
     ) -> TokenOutput:
         max_tokens = self.max_model_len - len(prompt_ids)
         sampling_params["logprobs"] = 0 if sampling_params.pop("logprobs", False) else None
-        sampling_params.setdefault("repetition_penalty", self.config.rollout.get("repetition_penalty", 1.0))
         sampling_params = SamplingParams(max_tokens=max_tokens, **sampling_params)
         prompt_ids = _qwen2_5_vl_dedup_image_tokens(prompt_ids, self.processor)
         prompt = TokensPrompt(
@@ -372,13 +371,13 @@ class AsyncvLLMServer(AsyncServerBase):
 
     async def wake_up(self):
         if self.config.rollout.free_cache_engine:
-            await asyncio.gather(*[worker.wake_up.remote() for worker in self.workers])
+            await self.engine.wake_up()
 
     async def sleep(self):
         # TODO: https://github.com/vllm-project/vllm/issues/17103
         await self.engine.reset_prefix_cache()
         if self.config.rollout.free_cache_engine:
-            await asyncio.gather(*[worker.sleep.remote() for worker in self.workers])
+            await self.engine.sleep(level=VLLM_SLEEP_LEVEL)
 
 
 def _qwen2_5_vl_dedup_image_tokens(prompt_ids: list[int], processor):

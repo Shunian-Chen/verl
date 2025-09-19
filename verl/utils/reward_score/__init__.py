@@ -45,9 +45,9 @@ def default_compute_score(
 
         res = gsm8k.compute_score(solution_str, ground_truth)
     elif data_source in ["lighteval/MATH", "DigitalLearningGmbH/MATH-lighteval", "HuggingFaceH4/MATH-500"]:
-        from . import math_reward
+        from . import math
 
-        res = math_reward.compute_score(solution_str, ground_truth)
+        res = math.compute_score(solution_str, ground_truth)
         # [Optional] Math-Verify Integration
         # For enhanced accuracy, consider utilizing Math-Verify (https://github.com/huggingface/Math-Verify).
         # Note: Math-Verify needs to be manually installed via pip: `pip install math-verify`.
@@ -55,7 +55,7 @@ def default_compute_score(
 
         # from . import math_verify
         # res = math_verify.compute_score(solution_str, ground_truth)
-    elif data_source in ["math_dapo", "math", "math_dapo_reasoning"] or data_source.startswith("aime"):
+    elif data_source == "math_dapo" or data_source.startswith("aime"):
         from . import math_dapo
 
         res = math_dapo.compute_score(solution_str, ground_truth)
@@ -87,8 +87,12 @@ def default_compute_score(
             res = prime_code.compute_score(solution_str, ground_truth, continuous=True)
     elif data_source in ["hiyouga/geometry3k"]:
         from . import geo3k
-
         res = geo3k.compute_score(solution_str, ground_truth)
+    
+    elif data_source in ["iceberg"]:
+        from . import iceberg
+        res = iceberg.compute_score(solution_str, ground_truth)
+
     elif data_source in [
         "searchR1_nq",
         "searchR1_triviaqa",

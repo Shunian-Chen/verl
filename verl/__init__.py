@@ -74,19 +74,16 @@ if is_npu_available:
     # for third-party devices such as NPUs. This patch fixes this issue, and the relevant
     # modifications can be removed once the fix is merged into tensordict.
 
-    import tensordict
+    from tensordict.base import TensorDictBase
 
-    if parse_version(tensordict.__version__) < parse_version("0.10.0"):
-        from tensordict.base import TensorDictBase
+    def _sync_all_patch(self):
+        from torch._utils import _get_available_device_type, _get_device_module
 
-        def _sync_all_patch(self):
-            from torch._utils import _get_available_device_type, _get_device_module
+        device_type = _get_available_device_type()
+        if device_type is None:
+            return
 
-            device_type = _get_available_device_type()
-            if device_type is None:
-                return
+        device_module = _get_device_module(device_type)
+        device_module.synchronize()
 
-            device_module = _get_device_module(device_type)
-            device_module.synchronize()
-
-        TensorDictBase._sync_all = _sync_all_patch
+    TensorDictBase._sync_all = _sync_all_patch

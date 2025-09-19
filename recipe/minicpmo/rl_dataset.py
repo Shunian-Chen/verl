@@ -481,6 +481,8 @@ class RLHFDataset(Dataset):
             print(r"old dataloader ckpt file is used, please train from scratch for better ckpt performance")
 
     def __len__(self):
+        if not hasattr(self, "dataframe"):
+            self.resume_dataset_state()
         return len(self.dataframe)
 
     def _build_messages(self, example: dict):
@@ -490,6 +492,8 @@ class RLHFDataset(Dataset):
         """
         Note that we also return the raw_input_ids so that it can be combined with other chat template
         """
+        if not hasattr(self, "dataframe"):
+            self.resume_dataset_state()
         row_dict: dict = self.dataframe[item]
         messages = self._build_messages(row_dict)
         model_inputs = {}

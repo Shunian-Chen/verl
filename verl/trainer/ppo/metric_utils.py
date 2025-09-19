@@ -208,6 +208,29 @@ def compute_data_metrics(batch: DataProto, use_critic: bool = True) -> dict[str,
         "prompt_length/clip_ratio": torch.mean(torch.eq(prompt_length, max_prompt_length).float()).detach().item(),
     }
 
+    # reward extra infos (from rule-based RM like iceberg): format_reward / answer_reward and tag counts
+    bsz = sequence_score.shape[0]
+    def _maybe_add_stats(name: str, values) -> None:
+        try:
+            t = torch.as_tensor(values)
+            if t.ndim == 0:
+                t = t.view(1)
+            if t.shape[0] == bsz:
+                t_non_aborted = t[non_aborted_mask]
+            else:
+                t_non_aborted = t
+            if t_non_aborted.numel() > 0:
+                metrics[f"reward_extra/{name}/mean"] = torch.mean(t_non_aborted.float()).item()
+                metrics[f"reward_extra/{name}/max"] = torch.max(t_non_aborted.float()).item()
+                metrics[f"reward_extra/{name}/min"] = torch.min(t_non_aborted.float()).item()
+        except Exception:
+            # skip silently if not numeric or shape mismatched
+            pass
+
+    for key in ["format_reward", "answer_reward", "num_look", "num_think", "num_answer"]:
+        if key in batch.non_tensor_batch:
+            _maybe_add_stats(key, batch.non_tensor_batch[key])
+
     # multi-turn conversation
     if "__num_turns__" in batch.non_tensor_batch:
         num_turns = batch.non_tensor_batch["__num_turns__"]
@@ -436,7 +459,16 @@ def process_validation_metrics(
     for data_source, uid2var2vals in data_src2uid2var2vals.items():
         for uid, var2vals in uid2var2vals.items():
             for var_name, var_vals in var2vals.items():
+                # 跳过非数值型（如 str、dict、list 等）变量
                 if isinstance(var_vals[0], str):
+                    continue
+                try:
+                    is_all_numeric = all(
+                        isinstance(x, (int, float, bool, np.number)) for x in var_vals
+                    )
+                except Exception:
+                    is_all_numeric = False
+                if not is_all_numeric:
                     continue
 
                 metric = {}

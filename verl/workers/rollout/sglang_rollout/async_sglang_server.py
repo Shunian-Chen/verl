@@ -82,13 +82,20 @@ class AsyncSGLangServer(AsyncServerBase):
         request_id: str,
         image_data: Optional[list[Any]] = None,
     ) -> TokenOutput:
-        sampling_params.setdefault("repetition_penalty", self.config.rollout.get("repetition_penalty", 1.0))
         return await self.master_worker.generate.remote(prompt_ids, sampling_params, request_id, image_data=image_data)
 
     async def wake_up(self):
-        if self.config.rollout.free_cache_engine:
-            await asyncio.gather(*[worker.wake_up.remote() for worker in self.workers])
+        if not self.config.rollout.free_cache_engine:
+            return
+
+        tasks = [worker.wake_up.remote() for worker in self.workers]
+        if tasks:
+            await asyncio.gather(*tasks)
 
     async def sleep(self):
-        if self.config.rollout.free_cache_engine:
-            await asyncio.gather(*[worker.sleep.remote() for worker in self.workers])
+        if not self.config.rollout.free_cache_engine:
+            return
+
+        tasks = [worker.sleep.remote() for worker in self.workers]
+        if tasks:
+            await asyncio.gather(*tasks)

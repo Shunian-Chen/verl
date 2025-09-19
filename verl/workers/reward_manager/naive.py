@@ -93,9 +93,12 @@ class NaiveRewardManager(AbstractRewardManager):
 
             if isinstance(score, dict):
                 reward = score["score"]
-                # Store the information including original reward
+                # 仅记录可数值聚合的字段，避免将 dict/list 注入验证指标
                 for key, value in score.items():
-                    reward_extra_info[key].append(value)
+                    if key in {"format", "tags"}:
+                        continue
+                    if isinstance(value, (int, float, bool)):
+                        reward_extra_info[key].append(value)
             else:
                 reward = score
 

@@ -15,10 +15,9 @@
 The abstract base class defining the interface for model training engines.
 """
 
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
-import torch
-from tensordict import TensorDict
+from verl import DataProto
 
 
 class BaseEngine:
@@ -78,7 +77,7 @@ class BaseEngine:
         """
         raise NotImplementedError
 
-    def forward_backward_batch(self, data: TensorDict, loss_function: Callable, forward_only=False) -> Any:
+    def forward_backward_batch(self, data: DataProto, loss_function: Callable, forward_only=False) -> Any:
         """
         Perform a forward pass and optionally a backward pass on a batch of data.
 
@@ -92,7 +91,7 @@ class BaseEngine:
         """
         raise NotImplementedError
 
-    def train_batch(self, data: TensorDict, loss_function: Callable) -> Any:
+    def train_batch(self, data: DataProto, loss_function: Callable) -> Any:
         """
         Perform a training step on a batch of data.
 
@@ -106,11 +105,10 @@ class BaseEngine:
         self.optimizer_zero_grad()
         outputs = self.forward_backward_batch(data, loss_function, forward_only=False)
         grad_norm = self.optimizer_step()
-        if self.is_mp_src_rank_with_outputs():
-            outputs["metrics"]["grad_norm"] = grad_norm
+        outputs["grad_norm"] = grad_norm
         return outputs
 
-    def infer_batch(self, data: TensorDict, loss_function: Optional[Callable] = None) -> Any:
+    def infer_batch(self, data: DataProto) -> Any:
         """
         Perform inference on a batch of data.
 
@@ -120,17 +118,12 @@ class BaseEngine:
         Returns:
             Any: The output of the inference, which can be used for predictions or other purposes.
         """
-        with torch.no_grad():
-            outputs = self.forward_backward_batch(data, loss_function, forward_only=True)
-        return outputs
+        return self.forward_backward_batch(data, None, forward_only=True)
 
     def get_data_parallel_size(self):
         raise NotImplementedError
 
     def get_data_parallel_rank(self):
-        raise NotImplementedError
-
-    def get_data_parallel_group(self):
         raise NotImplementedError
 
     def to(self, device: str, model: bool = True, optimizer: bool = True):
@@ -167,9 +160,9 @@ class BaseEngine:
         """
         raise NotImplementedError
 
-    def is_mp_src_rank_with_outputs(self):
+    def is_collect(self):
         """
-        Whether the current rank is the first rank in model parallel group that contains model outputs
+        Whether the output will be collected by the single controller process
         """
         raise NotImplementedError
 
@@ -186,15 +179,14 @@ class EngineRegistry:
     _engines = {}
 
     @classmethod
-    def register(cls, model_type: str, backend: list[str] | str):
+    def register(cls, key: list[str] | str):
         """
         A class method decorator that registers an engine class with a given key.
 
         This allows for dynamic instantiation of engine classes by their registered key.
 
         Args:
-            model_type (str): The type of the model
-            backend (list[str] | str): The backend to use for the model type
+            key (str): The identifier to associate with the engine class.
 
         Returns:
             A decorator function that takes an engine class and registers it.
@@ -202,27 +194,23 @@ class EngineRegistry:
 
         def decorator(engine_class):
             assert issubclass(engine_class, BaseEngine)
-            if model_type not in cls._engines:
-                cls._engines[model_type] = {}
-
-            if isinstance(backend, list):
-                for k in backend:
-                    cls._engines[model_type][k] = engine_class
+            if isinstance(key, list):
+                for k in key:
+                    cls._engines[k] = engine_class
             else:
-                assert isinstance(backend, str)
-                cls._engines[model_type][backend] = engine_class
+                assert isinstance(key, str)
+                cls._engines[key] = engine_class
             return engine_class
 
         return decorator
 
     @classmethod
-    def get_engine_cls(cls, model_type: str, backend: str):
-        assert model_type in cls._engines, f"Unknown model_type: {model_type}"
-        assert backend in cls._engines[model_type], f"Unknown backend: {backend}"
-        return cls._engines[model_type][backend]
+    def get_engine_cls(cls, key):
+        assert key in cls._engines, f"Unknown engine: {key}"
+        return cls._engines[key]
 
     @classmethod
-    def new(cls, model_type, backend, *args, **kwargs):
+    def new(cls, key, *args, **kwargs):
         """
         Function to create a new training engine instance based on the provided config.
         Args:
@@ -234,5 +222,7 @@ class EngineRegistry:
         Raises:
             NotImplementedError: If the engine key in the config does not match any known engines.
         """
-        engine_cls = cls.get_engine_cls(model_type, backend)
-        return engine_cls(*args, **kwargs)
+        if key in cls._engines:
+            return cls._engines[key](*args, **kwargs)
+        else:
+            raise NotImplementedError(f"Unknown engine: {key}")
