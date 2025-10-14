@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>推理结果对比查看器</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; margin: 0; background: #f9fafb; }
+    header { padding: 14px 20px; background: #0f172a; color: #fff; display: flex; align-items: center; justify-content: space-between; }
+    header h1 { margin: 0; font-size: 18px; }
+    main { padding: 20px; max-width: 1800px; margin: 0 auto; }
+    
+    .tabs { display: flex; gap: 2px; background: #e5e7eb; border-radius: 6px; padding: 2px; margin-bottom: 20px; }
+    .tab { padding: 8px 16px; border: none; background: transparent; cursor: pointer; border-radius: 4px; font-size: 14px; font-weight: 500; transition: all 0.2s; }
+    .tab:hover { background: rgba(0,0,0,0.05); }
+    .tab.active { background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    
+    .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; background: white; padding: 16px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .toolbar label { font-size: 13px; color: #64748b; font-weight: 500; }
+    .toolbar select, .toolbar input, .toolbar button { padding: 6px 12px; font-size: 14px; border: 1px solid #e5e7eb; border-radius: 4px; }
+    .toolbar button { background: #3b82f6; color: white; border: none; cursor: pointer; font-weight: 500; }
+    .toolbar button:hover { background: #2563eb; }
+    
+    .model-selector { display: flex; gap: 8px; flex-wrap: wrap; }
+    .model-checkbox { display: flex; align-items: center; gap: 4px; padding: 4px 8px; background: #f3f4f6; border-radius: 4px; font-size: 13px; }
+    .model-checkbox input { margin: 0; }
+    
+    .summary { margin: 12px 0; padding: 12px 16px; background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 8px; }
+    .summary-item { padding: 8px; background: #f9fafb; border-radius: 6px; }
+    .summary-item .model-name { font-size: 12px; color: #64748b; margin-bottom: 4px; }
+    .summary-item .stats { display: flex; gap: 12px; }
+    .summary-item .stat { font-size: 13px; }
+    .summary-item .stat strong { color: #0f172a; }
+    
+    .compare-container { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden; }
+    .question-card { border-bottom: 2px solid #f3f4f6; padding: 20px; }
+    .question-card:last-child { border-bottom: none; }
+    .question-header { display: flex; gap: 16px; margin-bottom: 12px; align-items: flex-start; }
+    .question-number { background: #3b82f6; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+    .question-text { flex: 1; font-size: 13px; line-height: 1.6; color: #334155; white-space: pre-wrap; max-height: 300px; overflow-y: auto; padding: 12px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0; }
+    .question-images { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+    .question-images img { height: 120px; border: 1px solid #e5e7eb; border-radius: 6px; cursor: pointer; transition: transform 0.2s; }
+    .question-images img:hover { transform: scale(1.05); }
+    
+    .model-answers { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 16px; margin-top: 16px; }
+    .model-answer { padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .model-answer.correct { border-color: #10b981; background: linear-gradient(to right, #f0fdf4, #ffffff); }
+    .model-answer.wrong { border-color: #ef4444; background: linear-gradient(to right, #fef2f2, #ffffff); }
+    .model-name { font-size: 13px; font-weight: 600; color: #475569; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb; word-break: break-all; }
+    .answer-text { font-size: 13px; line-height: 1.6; margin-bottom: 12px; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+    .answer-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; font-size: 12px; padding: 8px; background: #f9fafb; border-radius: 4px; }
+    .answer-meta .meta-item { display: flex; flex-direction: column; }
+    .answer-meta .meta-label { color: #94a3b8; font-size: 11px; }
+    .answer-meta .meta-value { color: #334155; font-weight: 600; margin-top: 2px; }
+    .answer-meta .correct { color: #10b981; }
+    .answer-meta .wrong { color: #ef4444; }
+    
+    /* XML标签样式 */
+    .xml-look { display: inline-block; background: #fef3c7; color: #92400e; padding: 2px 6px; border-radius: 4px; font-weight: 500; margin: 2px 0; }
+    .xml-think { display: inline-block; background: #dbeafe; color: #1e40af; padding: 2px 6px; border-radius: 4px; font-weight: 500; margin: 2px 0; }
+    .xml-answer { display: inline-block; background: #dcfce7; color: #166534; padding: 2px 6px; border-radius: 4px; font-weight: 500; margin: 2px 0; }
+    .xml-block { margin: 8px 0; padding: 8px; border-left: 3px solid; border-radius: 4px; }
+    .xml-block.look { background: #fef3c7; border-color: #f59e0b; }
+    .xml-block.think { background: #dbeafe; border-color: #3b82f6; }
+    .xml-block.answer { background: #dcfce7; border-color: #22c55e; }
+    
+    .ground-truth { margin-top: 12px; padding: 8px; background: #f0f9ff; border-radius: 4px; border-left: 3px solid #3b82f6; }
+    .ground-truth-label { font-size: 12px; color: #64748b; font-weight: 500; }
+    .ground-truth-text { font-size: 13px; margin-top: 4px; }
+    
+    .pagination { display: flex; gap: 12px; align-items: center; margin-top: 20px; justify-content: center; }
+    .pagination button { padding: 8px 16px; background: white; border: 1px solid #e5e7eb; border-radius: 4px; cursor: pointer; }
+    .pagination button:hover { background: #f3f4f6; }
+    .pagination button:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    .single-view { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow-x: auto; }
+    .table { width: 100%; border-collapse: collapse; }
+    .table th, .table td { border-bottom: 1px solid #e5e7eb; padding: 10px; text-align: left; font-size: 13px; }
+    .table th { background: #f9fafb; font-weight: 600; color: #475569; }
+    .table tr:hover { background: #f9fafb; }
+    
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .muted { color: #94a3b8; }
+    .hidden { display: none !important; }
+    .expand-btn { font-size: 11px; color: #3b82f6; cursor: pointer; margin-left: 8px; }
+    .expand-btn:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🔬 推理结果对比查看器</h1>
+    <span class="muted" id="baseDir"></span>
+  </header>
+  
+  <main>
+    <div class="tabs">
+      <button class="tab active" data-view="compare">多模型对比</button>
+      <button class="tab" data-view="single">单模型查看</button>
+    </div>
+    
+    <!-- 多模型对比视图 -->
+    <div id="compareView">
+      <div class="toolbar">
+        <label>选择模型：</label>
+        <div class="model-selector" id="modelSelector"></div>
+        <label>正确性：</label>
+        <select id="compareCorrectness">
+          <option value="all">全部</option>
+          <option value="true">至少一个正确</option>
+          <option value="false">至少一个错误</option>
+          <option value="mixed">答案不一致</option>
+        </select>
+        <label>搜索：</label>
+        <input id="compareQuery" type="text" placeholder="搜索问题内容" style="width: 200px"/>
+        <button id="compareRefresh">🔄 刷新</button>
+      </div>
+      
+      <div class="summary" id="compareSummary"></div>
+      
+      <div class="compare-container" id="compareResults"></div>
+      
+      <div class="pagination">
+        <button id="comparePrev">上一页</button>
+        <span id="comparePageInfo"></span>
+        <button id="compareNext">下一页</button>
+      </div>
+    </div>
+    
+    <!-- 单模型查看视图 -->
+    <div id="singleView" class="hidden">
+      <div class="toolbar">
+        <label>文件：</label>
+        <select id="fileSelect"></select>
+        <label>正确性：</label>
+        <select id="singleCorrectness">
+          <option value="all">全部</option>
+          <option value="true">正确</option>
+          <option value="false">错误</option>
+        </select>
+        <label>搜索：</label>
+        <input id="singleQuery" type="text" placeholder="搜索内容"/>
+        <button id="singleRefresh">🔄 刷新</button>
+      </div>
+      
+      <div class="summary" id="singleSummary"></div>
+      
+      <div class="single-view">
+        <table class="table">
+          <thead>
+            <tr>
+              <th style="width:60px">#</th>
+              <th>Question</th>
+              <th>Answer</th>
+              <th>GT</th>
+              <th style="width:200px">Images</th>
+              <th style="width:120px">Reward</th>
+            </tr>
+          </thead>
+          <tbody id="singleTbody"></tbody>
+        </table>
+      </div>
+      
+      <div class="pagination">
+        <button id="singlePrev">上一页</button>
+        <span id="singlePageInfo"></span>
+        <button id="singleNext">下一页</button>
+        <label>每页</label>
+        <select id="singleLimit">
+          <option>20</option>
+          <option selected>50</option>
+          <option>100</option>
+        </select>
+      </div>
+    </div>
+  </main>
+  
+  <script>
+    const $ = (id) => document.getElementById(id);
+    
+    let state = {
+      view: 'compare',
+      files: [],
+      selectedModels: [],
+      compareOffset: 0,
+      compareLimit: 20,
+      singleFile: null,
+      singleOffset: 0,
+      singleLimit: 50,
+    };
+    
+    function escapeHtml(s) {
+      return (s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    }
+    
+    function imgTag(p) {
+      const enc = encodeURIComponent(p);
+      return `<img src="/api/image?path=${enc}" alt="img" onclick="window.open(this.src)"/>`;
+    }
+    
+    function shortName(fname) {
+      // 保留完整模型名称
+      return fname.replace('.jsonl', '');
+    }
+    
+    function formatXmlContent(text) {
+      // 格式化包含XML标签的文本
+      if (!text) return '';
+      
+      // 处理XML标签，添加样式
+      let formatted = escapeHtml(text);
+      
+      // 识别并格式化 <look>, <think>, <answer> 块
+      formatted = formatted.replace(/&lt;look&gt;([\s\S]*?)&lt;\/look&gt;/g, 
+        '<div class="xml-block look"><span class="xml-look">LOOK</span><div>$1</div></div>');
+      formatted = formatted.replace(/&lt;think&gt;([\s\S]*?)&lt;\/think&gt;/g, 
+        '<div class="xml-block think"><span class="xml-think">THINK</span><div>$1</div></div>');
+      formatted = formatted.replace(/&lt;answer&gt;([\s\S]*?)&lt;\/answer&gt;/g, 
+        '<div class="xml-block answer"><span class="xml-answer">ANSWER</span><div>$1</div></div>');
+      
+      return formatted;
+    }
+    
+    async function fetchFiles() {
+      const r = await fetch('/api/files');
+      const d = await r.json();
+      state.files = d.files || [];
+      $('baseDir').textContent = d.base_dir || '';
+      
+      // 更新模型选择器
+      const sel = $('modelSelector');
+      sel.innerHTML = '';
+      state.files.forEach((f, i) => {
+        const label = document.createElement('label');
+        label.className = 'model-checkbox';
+        label.innerHTML = `
+          <input type="checkbox" value="${f.name}" ${i < 3 ? 'checked' : ''}>
+          <span>${shortName(f.name)}</span>
+        `;
+        sel.appendChild(label);
+        if (i < 3) state.selectedModels.push(f.name);
+      });
+      
+      // 更新单模型选择器
+      const singleSel = $('fileSelect');
+      singleSel.innerHTML = '';
+      for (const f of state.files) {
+        const opt = document.createElement('option');
+        opt.value = f.name;
+        opt.textContent = f.name;
+        singleSel.appendChild(opt);
+      }
+      if (state.files.length > 0 && !state.singleFile) {
+        state.singleFile = state.files[0].name;
+        singleSel.value = state.singleFile;
+      }
+    }
+    
+    async function fetchCompareResults() {
+      if (state.selectedModels.length === 0) return;
+      
+      const params = new URLSearchParams({
+        files: state.selectedModels.join(','),
+        offset: String(state.compareOffset),
+        limit: String(state.compareLimit),
+        correctness: $('compareCorrectness').value,
+      });
+      const q = $('compareQuery').value.trim();
+      if (q) params.set('query', q);
+      
+      const r = await fetch(`/api/compare?${params}`);
+      const d = await r.json();
+      
+      // 渲染汇总
+      const summaryDiv = $('compareSummary');
+      const summaryItems = Object.entries(d.summary_by_model || {}).map(([fname, stats]) => `
+        <div class="summary-item">
+          <div class="model-name">${shortName(fname)}</div>
+          <div class="stats">
+            <span class="stat">准确率: <strong>${(100 * stats.accuracy).toFixed(1)}%</strong></span>
+            <span class="stat">平均奖励: <strong>${stats.avg_total_reward.toFixed(2)}</strong></span>
+          </div>
+        </div>
+      `).join('');
+      summaryDiv.innerHTML = `
+        <div style="font-size: 14px; color: #475569; font-weight: 500;">模型性能对比</div>
+        <div class="summary-grid">${summaryItems}</div>
+      `;
+      
+      // 渲染问题卡片
+      const container = $('compareResults');
+      container.innerHTML = '';
+      
+      for (const item of d.items || []) {
+        const card = document.createElement('div');
+        card.className = 'question-card';
+        
+        // 问题头部
+        const imgs = (item.images || []).slice(0, 6).map(imgTag).join('');
+        const gtText = Object.values(item.models || {}).find(m => m?.ground_truth)?.ground_truth || '';
+        
+        // 模型答案
+        const modelCards = state.selectedModels.map(fname => {
+          const ma = item.models[fname];
+          if (!ma) return `
+            <div class="model-answer" style="opacity: 0.5">
+              <div class="model-name">${shortName(fname)}</div>
+              <div class="answer-text" style="text-align: center; color: #94a3b8;">无数据</div>
+            </div>
+          `;
+          
+          const isCorrect = ma.is_correct;
+          const correctClass = isCorrect === true ? 'correct' : isCorrect === false ? 'wrong' : '';
+          const correctText = isCorrect === true ? '正确' : isCorrect === false ? '错误' : '未知';
+          const correctIcon = isCorrect === true ? '✓' : isCorrect === false ? '✗' : '?';
+          const reward = ma.reward || {};
+          
+          return `
+            <div class="model-answer ${correctClass}">
+              <div class="model-name">${shortName(fname)}</div>
+              <div class="answer-text">${formatXmlContent(ma.answer)}</div>
+              <div class="answer-meta">
+                <div class="meta-item">
+                  <span class="meta-label">结果</span>
+                  <span class="meta-value ${correctClass}">${correctIcon} ${correctText}</span>
+                </div>
+                <div class="meta-item">
+                  <span class="meta-label">总奖励</span>
+                  <span class="meta-value">${reward.total ?? '-'}</span>
+                </div>
+                <div class="meta-item">
+                  <span class="meta-label">格式奖励</span>
+                  <span class="meta-value">${reward.format_reward ?? '-'}</span>
+                </div>
+                <div class="meta-item">
+                  <span class="meta-label">答案奖励</span>
+                  <span class="meta-value">${reward.answer_reward ?? '-'}</span>
+                </div>
+                <div class="meta-item">
+                  <span class="meta-label">链式奖励</span>
+                  <span class="meta-value">${reward.chain_reward ?? '-'}</span>
+                </div>
+                <div class="meta-item">
+                  <span class="meta-label">预测答案</span>
+                  <span class="meta-value">${reward.predicted ?? '-'}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+        
+        // 完整问题文本
+        const fullQuestion = item.question || '';
+        const isLongQuestion = fullQuestion.length > 500;
+        const questionId = `q_${item.index || Math.random().toString(36).substr(2, 9)}`;
+        
+        card.innerHTML = `
+          <div class="question-header">
+            <div class="question-number">#${item.index ?? '?'}</div>
+            <div class="question-text" id="${questionId}">
+              ${escapeHtml(isLongQuestion ? fullQuestion.slice(0, 500) + '...' : fullQuestion)}
+              ${isLongQuestion ? `<span class="expand-btn" onclick="toggleQuestion('${questionId}', '${btoa(encodeURIComponent(fullQuestion))}')">展开全部</span>` : ''}
+            </div>
+          </div>
+          ${imgs ? `<div class="question-images">${imgs}</div>` : ''}
+          ${gtText ? `
+            <div class="ground-truth">
+              <div class="ground-truth-label">标准答案</div>
+              <div class="ground-truth-text">${escapeHtml(gtText)}</div>
+            </div>
+          ` : ''}
+          <div class="model-answers">${modelCards}</div>
+        `;
+        
+        container.appendChild(card);
+      }
+      
+      // 分页信息
+      const total = d.total || 0;
+      const pageStart = state.compareOffset + 1;
+      const pageEnd = Math.min(state.compareOffset + state.compareLimit, total);
+      $('comparePageInfo').textContent = `${pageStart}-${pageEnd} / ${total}`;
+      
+      $('comparePrev').disabled = state.compareOffset === 0;
+      $('compareNext').disabled = state.compareOffset + state.compareLimit >= total;
+    }
+    
+    async function fetchSingleResults() {
+      if (!state.singleFile) return;
+      
+      const params = new URLSearchParams({
+        file: state.singleFile,
+        offset: String(state.singleOffset),
+        limit: String(state.singleLimit),
+        correctness: $('singleCorrectness').value,
+      });
+      const q = $('singleQuery').value.trim();
+      if (q) params.set('query', q);
+      
+      const r = await fetch(`/api/results?${params}`);
+      const d = await r.json();
+      
+      const s = d.summary || {};
+      $('singleSummary').textContent = `样本 ${s.total ?? 0}，正确 ${s.correct ?? 0} (准确率 ${(100*(s.accuracy||0)).toFixed(1)}%)，平均奖励 ${(s.avg_total_reward||0).toFixed(3)}`;
+      
+      const tbody = $('singleTbody');
+      tbody.innerHTML = '';
+      for (const it of d.items || []) {
+        const tr = document.createElement('tr');
+        const corr = (it.reward && typeof it.reward.is_correct === 'boolean') ? it.reward.is_correct : null;
+        const ansClass = corr === true ? 'correct' : corr === false ? 'wrong' : '';
+        const reward = it.reward || {};
+        const imgs = (it.images || []).slice(0, 3).map(p => imgTag(p)).join('');
+        
+        // 处理问题和答案的展开/收起
+        const qId = `sq_${it.index || Math.random().toString(36).substr(2, 9)}`;
+        const aId = `sa_${it.index || Math.random().toString(36).substr(2, 9)}`;
+        const question = it.question || '';
+        const answer = it.answer || '';
+        const qShort = question.length > 150;
+        const aShort = answer.length > 200;
+        
+        tr.innerHTML = `
+          <td class="mono">${escapeHtml(String(it.index))}</td>
+          <td>
+            <div id="${qId}" style="white-space: pre-wrap; font-size: 12px;">
+              ${escapeHtml(qShort ? question.slice(0, 150) + '...' : question)}
+              ${qShort ? `<span class="expand-btn" onclick="toggleQuestion('${qId}', '${btoa(encodeURIComponent(question))}')">展开</span>` : ''}
+            </div>
+          </td>
+          <td class="${ansClass}">
+            <div id="${aId}" style="white-space: pre-wrap; font-size: 12px;">
+              ${formatXmlContent(aShort ? answer.slice(0, 200) + '...' : answer)}
+              ${aShort ? `<span class="expand-btn" onclick="toggleQuestion('${aId}', '${btoa(encodeURIComponent(answer))}', true)">展开</span>` : ''}
+            </div>
+          </td>
+          <td style="font-size: 12px;">${escapeHtml(it.ground_truth||'')}</td>
+          <td><div class="question-images">${imgs}</div></td>
+          <td class="mono" style="font-size: 12px;">
+            ${reward.total ?? ''}
+            ${reward.format_reward !== undefined ? `<br><span class="muted">F:${reward.format_reward}</span>` : ''}
+            ${reward.answer_reward !== undefined ? `<br><span class="muted">A:${reward.answer_reward}</span>` : ''}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      }
+      
+      const total = d.total || 0;
+      const pageStart = state.singleOffset + 1;
+      const pageEnd = Math.min(state.singleOffset + state.singleLimit, total);
+      $('singlePageInfo').textContent = `${pageStart}-${pageEnd} / ${total}`;
+      
+      $('singlePrev').disabled = state.singleOffset === 0;
+      $('singleNext').disabled = state.singleOffset + state.singleLimit >= total;
+    }
+    
+    function switchView(view) {
+      state.view = view;
+      document.querySelectorAll('.tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.view === view);
+      });
+      $('compareView').classList.toggle('hidden', view !== 'compare');
+      $('singleView').classList.toggle('hidden', view !== 'single');
+      
+      if (view === 'compare') {
+        fetchCompareResults();
+      } else {
+        fetchSingleResults();
+      }
+    }
+    
+    function bindEvents() {
+      // 视图切换
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => switchView(tab.dataset.view));
+      });
+      
+      // 多模型对比
+      $('modelSelector').addEventListener('change', e => {
+        if (e.target.type === 'checkbox') {
+          state.selectedModels = Array.from(
+            document.querySelectorAll('#modelSelector input:checked')
+          ).map(cb => cb.value);
+          state.compareOffset = 0;
+          fetchCompareResults();
+        }
+      });
+      
+      $('compareCorrectness').addEventListener('change', () => {
+        state.compareOffset = 0;
+        fetchCompareResults();
+      });
+      
+      $('compareQuery').addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          state.compareOffset = 0;
+          fetchCompareResults();
+        }
+      });
+      
+      $('compareRefresh').addEventListener('click', fetchCompareResults);
+      
+      $('comparePrev').addEventListener('click', () => {
+        state.compareOffset = Math.max(0, state.compareOffset - state.compareLimit);
+        fetchCompareResults();
+      });
+      
+      $('compareNext').addEventListener('click', () => {
+        state.compareOffset += state.compareLimit;
+        fetchCompareResults();
+      });
+      
+      // 单模型查看
+      $('fileSelect').addEventListener('change', e => {
+        state.singleFile = e.target.value;
+        state.singleOffset = 0;
+        fetchSingleResults();
+      });
+      
+      $('singleCorrectness').addEventListener('change', () => {
+        state.singleOffset = 0;
+        fetchSingleResults();
+      });
+      
+      $('singleQuery').addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          state.singleOffset = 0;
+          fetchSingleResults();
+        }
+      });
+      
+      $('singleRefresh').addEventListener('click', fetchSingleResults);
+      
+      $('singlePrev').addEventListener('click', () => {
+        state.singleOffset = Math.max(0, state.singleOffset - state.singleLimit);
+        fetchSingleResults();
+      });
+      
+      $('singleNext').addEventListener('click', () => {
+        state.singleOffset += state.singleLimit;
+        fetchSingleResults();
+      });
+      
+      $('singleLimit').addEventListener('change', e => {
+        state.singleLimit = parseInt(e.target.value, 10) || 50;
+        state.singleOffset = 0;
+        fetchSingleResults();
+      });
+    }
+    
+    function toggleQuestion(id, encodedText, isAnswer = false) {
+      const elem = $(id);
+      const text = decodeURIComponent(atob(encodedText));
+      
+      if (elem.dataset.expanded === 'true') {
+        const truncated = isAnswer ? text.slice(0, 200) : text.slice(0, id.startsWith('sq_') ? 150 : 500);
+        elem.innerHTML = (isAnswer ? formatXmlContent(truncated) : escapeHtml(truncated)) + '...' + 
+          `<span class="expand-btn" onclick="toggleQuestion('${id}', '${encodedText}', ${isAnswer})">展开</span>`;
+        elem.dataset.expanded = 'false';
+      } else {
+        elem.innerHTML = (isAnswer ? formatXmlContent(text) : escapeHtml(text)) + 
+          `<span class="expand-btn" onclick="toggleQuestion('${id}', '${encodedText}', ${isAnswer})">收起</span>`;
+        elem.dataset.expanded = 'true';
+      }
+    }
+    
+    window.toggleQuestion = toggleQuestion;
+    
+    (async function init() {
+      bindEvents();
+      await fetchFiles();
+      await fetchCompareResults();
+    })();
+  </script>
+</body>
+</html>

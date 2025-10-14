@@ -5,8 +5,8 @@ set -euo pipefail
 #   bash scripts/merge_fsdp_actor.sh [GLOBAL_STEP_DIR] [TARGET_DIR] [--parquet PATH] [--dtype auto|bfloat16|float16|float32] [--num_samples N] [--max_new_tokens N]
 # 例子(仅合并):
   # bash scripts/merge_fsdp_actor.sh \
-  #   /root/et/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_3b_function_rm_iceberg/global_step_1500 \
-  #   /root/et/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_3b_function_rm_iceberg/global_step_1500_merged_hf
+  #   /root/et/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_3b_function_rm_iceberg_simple_example/global_step_700 \
+  #   /root/et/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_3b_function_rm_iceberg_simple_example/global_step_700_merged_hf
 # 例子(合并后顺带推理测试):
 #   bash scripts/merge_fsdp_actor.sh \
 #     /root/et/verl/checkpoints/.../global_step_700 \
@@ -71,21 +71,21 @@ python -m verl.model_merger merge \
 
 echo "[完成] 模型已合并到: ${TARGET_DIR}"
 
-# 若提供 parquet，则进行推理测试
-if [[ -n "${PARQUET}" ]]; then
-  if [[ ! -e "${PARQUET}" ]]; then
-    echo "[警告] 指定的 parquet 路径不存在: ${PARQUET} (跳过推理测试)" >&2
-    exit 0
-  fi
-  echo "[信息] 开始基于 parquet 抽样推理测试"
-  echo "[信息] 模型:   ${TARGET_DIR}"
-  echo "[信息] parquet: ${PARQUET}"
-  python /root/et/verl/scripts/test_hf_inference_from_parquet.py \
-    --model_dir "${TARGET_DIR}" \
-    --parquet "${PARQUET}" \
-    --dtype "${DTYPE}" \
-    --num_samples "${NUM_SAMPLES}" \
-    --max_new_tokens "${MAX_NEW_TOKENS}"
-fi
+# # 若提供 parquet，则进行推理测试
+# if [[ -n "${PARQUET}" ]]; then
+#   if [[ ! -e "${PARQUET}" ]]; then
+#     echo "[警告] 指定的 parquet 路径不存在: ${PARQUET} (跳过推理测试)" >&2
+#     exit 0
+#   fi
+#   echo "[信息] 开始基于 parquet 抽样推理测试"
+#   echo "[信息] 模型:   ${TARGET_DIR}"
+#   echo "[信息] parquet: ${PARQUET}"
+#   python /root/et/verl/scripts/test_hf_inference_from_parquet.py \
+#     --model_dir "${TARGET_DIR}" \
+#     --parquet "${PARQUET}" \
+#     --dtype "${DTYPE}" \
+#     --num_samples "${NUM_SAMPLES}" \
+#     --max_new_tokens "${MAX_NEW_TOKENS}"
+# fi
 
 

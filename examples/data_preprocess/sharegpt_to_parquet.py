@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 """
-Convert ShareGPT-style multimodal JSON to the same parquet schema as geo3k.py.
+Convert ShareGPT-style or simple QA-style multimodal JSON/JSONL to the same parquet schema as geo3k.py.
 
-Input JSON example item:
+Input JSON example item (ShareGPT style):
 {
   "id": "1152221_I_1",
   "image_path": "/path/to/1152221.jpg",
@@ -39,6 +39,8 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import traceback
+import random
+random.seed(42)
 
 import datasets
 
@@ -95,34 +97,19 @@ The response must begin with a `<look>` block, followed by a `<think>` block. Yo
 # A simplified alternative that gives only directional guidance and does not constrain
 # detailed content inside <look>/<think>, nor the order between them.
 instruction_simple = """<image>
------
-You are a vision-language assistant. Structure your response using `<look>`, `<think>`, and end with `<answer>`.
+You are a vision-language assistant. Your task is to answer the given question about an image. Structure your response using `<look>`, `<think>`, and end with `<answer>`.
 
-- You may include one or more `<look>` and `<think>` blocks in any order.
-- `<look>`: note observations that are relevant to the question.
-- `<think>`: reflect on observations and move toward an answer.
+- You may include one or more `<look>` and `<think>` blocks in any alternate order.
+- `<look>`: note key observations from the image that are relevant to the question.
+- `<think>`: reflect on observations and move toward an answer, revisit the observations if necessary.
 - `<answer>`: provide the final concise answer.
 
-Examples (any order is acceptable):
+Question:
+{question}
+"""
 
-```xml
-<think> ... </think>
-<look> ... </look>
-<answer> ... </answer>
-```
-
-```xml
-<look> ... </look>
-<think> ... </think>
-<answer> ... </answer>
-```
-
-```xml
-<think> ... </think>
-<look> ... </look>
-<think> ... </think>
-<answer> ... </answer>
-```
+instruction_normal = """<image>
+You are a vision-language assistant. Your task is to answer the given question about an image.
 
 Question:
 {question}
@@ -133,6 +120,7 @@ def extract_question_and_answer(conversations: List[Dict[str, Any]]) -> Tuple[st
 
     If <answer> tags are missing, use the whole assistant message text as answer.
     Removes leading <image> marker from the question if present.
+    Note: This is for legacy ShareGPT-style records containing "conversations".
     """
     question_text: str = ""
     answer_text: str = ""
@@ -171,7 +159,14 @@ def build_item(
     index: int,
     instruction_text: str,
 ) -> Dict[str, Any]:
-    question, answer = extract_question_and_answer(raw.get("conversations", []))
+    # 1) 提取问答：优先兼容新格式字段 question/answer；否则回退到 ShareGPT 风格的 conversations
+    conversations: List[Dict[str, Any]] = raw.get("conversations", [])
+    if not conversations:
+        question: str = (raw.get("question") or "").strip()
+        answer: str = (raw.get("answer") or "").strip()
+    else:
+        question, answer = extract_question_and_answer(conversations)
+
     images: List[str] = raw.get("images") or ([] if raw.get("image_path") is None else [raw["image_path"]])
 
 
@@ -185,14 +180,15 @@ def build_item(
         }
     ]
 
-    images = [image.replace("/wangbenyou/shunian/workspace/iceberg/data/images", "/root/et/data/images") for image in images]
+    images = [image.replace("/wangbenyou/shunian/workspace/iceberg/data/images", "/root/et/data/image_new") for image in images]
     # 将图片加载为二进制字节，保证写入 parquet 的结构为 [{'bytes': bytes, 'path': str}]
     image_bytes_list: List[Dict[str, Any]] = []
     for img_path in images:
         # 统一展开与标准化路径，避免相对路径/波浪线等导致的不一致
         resolved_path = os.path.abspath(os.path.expanduser(img_path))
         if not os.path.isfile(resolved_path):
-            raise FileNotFoundError(f"Image path does not exist: {resolved_path}")
+            print(f"[WARN] Skip missing image: {resolved_path}")
+            continue
         try:
             with open(resolved_path, "rb") as f:
                 img_bytes = f.read()
@@ -247,9 +243,9 @@ def main() -> None:
     parser.add_argument("--data_source", default="iceberg")
     parser.add_argument(
         "--instruction_style",
-        choices=["strict", "simple"],
+        choices=["strict", "simple", "hybrid"],
         default="strict",
-        help="Choose instruction template: 'strict' for detailed constraints; 'simple' for minimal guidance without ordering constraints.",
+        help="Choose instruction template: 'strict' for detailed constraints; 'simple' for minimal guidance without ordering constraints; 'hybrid' alternates simple/normal 1:1.",
     )
     args = parser.parse_args()
 
@@ -271,9 +267,22 @@ def main() -> None:
             records = [json.loads(line) for line in f if line.strip()]
 
     data: List[Dict[str, Any]] = []
-    selected_instruction = instruction if args.instruction_style == "strict" else instruction_simple
+    if args.instruction_style == "strict":
+        selected_instruction = instruction
+    elif args.instruction_style == "simple":
+        selected_instruction = instruction_simple
+    elif args.instruction_style == "hybrid":
+        selected_instruction = None  # decided per-sample below
+    else:
+        selected_instruction = instruction_simple
+
     for idx, rec in enumerate(records):
-        item = build_item(rec, args.data_source, split, idx, selected_instruction)
+        if args.instruction_style == "hybrid":
+            hybrid_idx = random.random()
+            chosen_instruction = instruction_simple if (hybrid_idx < 0.5) else instruction_normal
+        else:
+            chosen_instruction = selected_instruction
+        item = build_item(rec, args.data_source, split, idx, chosen_instruction)
         data.append(item)
 
     # # Debug-print first few items before schema application
@@ -301,5 +310,5 @@ if __name__ == "__main__":
 
 
 '''
-python examples/data_preprocess/sharegpt_to_parquet.py --input_json /root/et/data/sft_demos_gemini-2.5-pro_sharegpt.json --local_dir /data/iceberg --split train  --instruction_style simple
+python examples/data_preprocess/sharegpt_to_parquet.py --input_json /root/et/data/sft_demos_gemini-2.5-pro_sharegpt.json --local_dir /data/iceberg --split train  --instruction_style hybrid
 '''
