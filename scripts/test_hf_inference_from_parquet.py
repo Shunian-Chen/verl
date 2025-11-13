@@ -9,17 +9,43 @@ Qwen2.5-VL 稳健推理脚本（不依赖 AutoModelForConditionalGeneration）
 """
 
 from __future__ import annotations
+# -*- coding: utf-8 -*-
+
+"""
+Qwen2.5-VL 稳健推理脚本（不依赖 AutoModelForConditionalGeneration）
+- 直接使用 Qwen2_5_VLForConditionalGeneration（官方推荐）
+- messages -> apply_chat_template -> (qwen_vl_utils)process_vision_info -> processor -> generate
+- 兼容 parquet 的 images.bytes / images.path；可选 JSONL 输出；可选 verl 奖励
+"""
+
+from __future__ import annotations
 import argparse
 import os
 import json
+import json
 from io import BytesIO
+from typing import Any, Dict, List, Optional, Tuple, Set
+import time
 from typing import Any, Dict, List, Optional, Tuple, Set
 import time
 
 import torch
 import torch.distributed as dist
+import torch.distributed as dist
 import datasets as hfds
 from PIL import Image
+
+from transformers import (
+    AutoConfig,
+    AutoTokenizer,
+    AutoProcessor,
+    AutoModelForCausalLM,   # 仅做纯文本兜底
+    AutoModel,              # 最终兜底（若被迫回退则报错）
+    Qwen2_5_VLForConditionalGeneration,
+)
+
+# 可选：官方多模工具
+_QWEN_UTILS_AVAIL = True
 
 from transformers import (
     AutoConfig,
@@ -37,8 +63,16 @@ try:
 except Exception:
     _QWEN_UTILS_AVAIL = False
     process_vision_info = None  # type: ignore
+    from qwen_vl_utils import process_vision_info  # pip install qwen-vl-utils
+except Exception:
+    _QWEN_UTILS_AVAIL = False
+    process_vision_info = None  # type: ignore
 
 
+# ---------------------------- 小工具 ----------------------------
+
+def get_torch_dtype(dtype_str: str) -> Any:
+    mapping = {
 # ---------------------------- 小工具 ----------------------------
 
 def get_torch_dtype(dtype_str: str) -> Any:
@@ -46,8 +80,137 @@ def get_torch_dtype(dtype_str: str) -> Any:
         "auto": "auto",
         "bfloat16": torch.bfloat16,
         "float16": torch.float16,
+        "float16": torch.float16,
         "float32": torch.float32,
     }
+    return mapping.get(dtype_str.lower(), "auto")
+
+
+def is_vlm_config(cfg: AutoConfig) -> bool:
+    archs = (getattr(cfg, "architectures", None) or [])
+    model_type = (getattr(cfg, "model_type", "") or "").lower()
+    any_vl = any(("vl" in (a or "").lower()) for a in archs)
+    return any_vl or model_type.endswith("_vl") or "qwen2_5_vl" in model_type
+
+
+def pil_from_any(x: Any) -> Optional[Image.Image]:
+    try:
+        if isinstance(x, (bytes, bytearray)):
+            return Image.open(BytesIO(x)).convert("RGB")
+        if isinstance(x, str) and os.path.exists(x):
+            return Image.open(x).convert("RGB")
+    except Exception:
+        return None
+    return None
+
+
+def extract_text_from_prompt(prompt_list: List[Dict[str, Any]]) -> str:
+    for turn in prompt_list or []:
+        role = (turn.get("role") or "").lower()
+        content = turn.get("content") or ""
+        if role == "user" and isinstance(content, str) and content.strip():
+            return content
+    if prompt_list:
+        c = prompt_list[0].get("content") or ""
+        return c if isinstance(c, str) else ""
+    return ""
+
+
+def build_messages_and_images(example: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[Image.Image], List[str]]:
+    """
+    将一条样本转换成 Qwen 消息格式与 PIL 图像列表
+    支持字段：
+      - prompt: list of {role, content}
+      - images: list of {bytes?, path?}
+    """
+    prompt_list = example.get("prompt") or []
+    text_content = extract_text_from_prompt(prompt_list)
+
+    pil_images: List[Image.Image] = []
+    image_paths: List[str] = []
+    for it in (example.get("images") or []):
+        if isinstance(it, dict):
+            if "bytes" in it and isinstance(it["bytes"], (bytes, bytearray)) and len(it["bytes"]) > 0:
+                im = pil_from_any(it["bytes"])
+                if im is not None:
+                    pil_images.append(im)
+            if "path" in it and isinstance(it["path"], str) and it["path"]:
+                image_paths.append(it["path"])
+                im = pil_from_any(it["path"])
+                if im is not None:
+                    pil_images.append(im)
+
+    content_items: List[Dict[str, Any]] = []
+    if text_content:
+        content_items.append({"type": "text", "text": text_content})
+    for im in pil_images:
+        content_items.append({"type": "image", "image": im})
+    if not content_items:
+        content_items = [{"type": "text", "text": ""}]
+
+    messages = [{"role": "user", "content": content_items}]
+    return messages, pil_images, image_paths
+
+
+def extract_ground_truth(example: Dict[str, Any]) -> Optional[str]:
+    rm = example.get("reward_model") or {}
+    gt = rm.get("ground_truth")
+    if isinstance(gt, list) and gt:
+        return str(gt[0])
+    if isinstance(gt, (str, int, float)):
+        return str(gt)
+
+    extra = example.get("extra_info") or {}
+    ans = extra.get("answer")
+    if isinstance(ans, (str, int, float)):
+        return str(ans)
+
+    top = example.get("answer")
+    if isinstance(top, (str, int, float)):
+        return str(top)
+
+    return None
+
+
+# ---------------------------- 加载与推理 ----------------------------
+
+def get_dist_info() -> Tuple[int, int, int]:
+    """从环境变量获取分布式信息。
+    返回 (rank, local_rank, world_size)。若未分布式，返回 (0, -1, 1)。
+    """
+    try:
+        rank = int(os.environ.get("RANK", "0"))
+    except Exception:
+        rank = 0
+    try:
+        local_rank = int(os.environ.get("LOCAL_RANK", "-1"))
+    except Exception:
+        local_rank = -1
+    try:
+        world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    except Exception:
+        world_size = 1
+    return rank, local_rank, world_size
+
+
+def setup_distributed_if_needed() -> Tuple[int, int, int]:
+    """如需则初始化 torch.distributed，并返回 (rank, local_rank, world_size)。"""
+    rank, local_rank, world_size = get_dist_info()
+    if world_size > 1 and not (dist.is_available() and dist.is_initialized()):
+        backend = "nccl" if torch.cuda.is_available() else "gloo"
+        dist.init_process_group(backend=backend)
+    return rank, local_rank, world_size
+
+def load_model_and_processor(
+    model_dir: str,
+    dtype: str = "auto",
+    device: Optional[str] = None,
+    trust_remote_code: bool = True,
+):
+    cfg = AutoConfig.from_pretrained(model_dir, trust_remote_code=trust_remote_code)
+    torch_dtype = get_torch_dtype(dtype)
+
+    tokenizer = AutoTokenizer.from_pretrained(model_dir, use_fast=True, trust_remote_code=trust_remote_code)
     return mapping.get(dtype_str.lower(), "auto")
 
 
@@ -180,8 +343,22 @@ def load_model_and_processor(
     if os.path.exists(os.path.join(model_dir, "preprocessor_config.json")):
         try:
             processor = AutoProcessor.from_pretrained(model_dir, trust_remote_code=trust_remote_code)
+            processor = AutoProcessor.from_pretrained(model_dir, trust_remote_code=trust_remote_code)
         except Exception:
             processor = None
+
+    if is_vlm_config(cfg):
+        # 直接用显式类（官方文档建议）
+        try:
+            model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+                model_dir,
+                torch_dtype=torch_dtype if torch_dtype != "auto" else None,
+                device_map=None,
+                low_cpu_mem_usage=True,
+                trust_remote_code=trust_remote_code,
+            )
+        except Exception as e:
+            # 极端兜底：AutoModel（随后会强制检查 generate）
 
     if is_vlm_config(cfg):
         # 直接用显式类（官方文档建议）
@@ -201,6 +378,11 @@ def load_model_and_processor(
                 device_map=None,
                 low_cpu_mem_usage=True,
                 trust_remote_code=trust_remote_code,
+                model_dir,
+                torch_dtype=torch_dtype if torch_dtype != "auto" else None,
+                device_map=None,
+                low_cpu_mem_usage=True,
+                trust_remote_code=trust_remote_code,
             )
     else:
         model = AutoModelForCausalLM.from_pretrained(
@@ -209,10 +391,17 @@ def load_model_and_processor(
             device_map=None,
             low_cpu_mem_usage=True,
             trust_remote_code=trust_remote_code,
+            model_dir,
+            torch_dtype=torch_dtype if torch_dtype != "auto" else None,
+            device_map=None,
+            low_cpu_mem_usage=True,
+            trust_remote_code=trust_remote_code,
         )
+
 
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
+    model.to(device)
     model.to(device)
     model.eval()
 
@@ -223,11 +412,20 @@ def load_model_and_processor(
         )
 
     return model, tokenizer, processor, cfg, device
+    if not hasattr(model, "generate"):
+        raise RuntimeError(
+            f"已加载为 {type(model).__name__}，但缺少 generate()。"
+            "请确认这是可生成的 actor/指令模型；或 Transformers 版本足够新；或未错误回退为 base。"
+        )
+
+    return model, tokenizer, processor, cfg, device
 
 
 def load_parquet_dataset(parquet_path: str, num_samples: Optional[int]) -> hfds.Dataset:
+def load_parquet_dataset(parquet_path: str, num_samples: Optional[int]) -> hfds.Dataset:
     ds = hfds.load_dataset("parquet", data_files=parquet_path, split="train")
     if num_samples is not None:
+        ds = ds.select(range(min(num_samples, len(ds))))
         ds = ds.select(range(min(num_samples, len(ds))))
     return ds
 
@@ -282,6 +480,7 @@ def infer_one(
             trimmed = [output_ids[0]]
 
         if hasattr(processor, "batch_decode"):
+            out_text = processor.batch_decode(trimmed, skip_special_tokens=True)[0]
             out_text = processor.batch_decode(trimmed, skip_special_tokens=True)[0]
         else:
             out_text = tokenizer.decode(trimmed[0], skip_special_tokens=True)
@@ -517,6 +716,18 @@ def main():
                 last_print = processed_count
 
         except Exception as e:
+            print(f"[ERROR] rank={rank} sample {i} failed: {e}")
+
+    # 同步退出，方便外部合并分片
+    if dist.is_available() and dist.is_initialized():
+        try:
+            dist.barrier()
+        except Exception:
+            pass
+        try:
+            dist.destroy_process_group()
+        except Exception:
+            pass
             print(f"[ERROR] rank={rank} sample {i} failed: {e}")
 
     # 同步退出，方便外部合并分片

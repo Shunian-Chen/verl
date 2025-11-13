@@ -2,7 +2,9 @@
 
 """
 Convert ShareGPT-style or simple QA-style multimodal JSON/JSONL to the same parquet schema as geo3k.py.
+Convert ShareGPT-style or simple QA-style multimodal JSON/JSONL to the same parquet schema as geo3k.py.
 
+Input JSON example item (ShareGPT style):
 Input JSON example item (ShareGPT style):
 {
   "id": "1152221_I_1",
@@ -39,6 +41,8 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import traceback
+import random
+random.seed(42)
 import random
 random.seed(42)
 
@@ -98,7 +102,11 @@ The response must begin with a `<look>` block, followed by a `<think>` block. Yo
 # detailed content inside <look>/<think>, nor the order between them.
 instruction_simple = """<image>
 You are a vision-language assistant. Your task is to answer the given question about an image. Structure your response using `<look>`, `<think>`, and end with `<answer>`.
+You are a vision-language assistant. Your task is to answer the given question about an image. Structure your response using `<look>`, `<think>`, and end with `<answer>`.
 
+- You may include one or more `<look>` and `<think>` blocks in any alternate order.
+- `<look>`: note key observations from the image that are relevant to the question.
+- `<think>`: reflect on observations and move toward an answer, revisit the observations if necessary.
 - You may include one or more `<look>` and `<think>` blocks in any alternate order.
 - `<look>`: note key observations from the image that are relevant to the question.
 - `<think>`: reflect on observations and move toward an answer, revisit the observations if necessary.
@@ -157,6 +165,7 @@ def extract_question_and_answer(conversations: List[Dict[str, Any]]) -> Tuple[st
     If <answer> tags are missing, use the whole assistant message text as answer.
     Removes leading <image> marker from the question if present.
     Note: This is for legacy ShareGPT-style records containing "conversations".
+    Note: This is for legacy ShareGPT-style records containing "conversations".
     """
     question_text: str = ""
     answer_text: str = ""
@@ -203,6 +212,14 @@ def build_item(
     else:
         question, answer = extract_question_and_answer(conversations)
 
+    # 1) 提取问答：优先兼容新格式字段 question/answer；否则回退到 ShareGPT 风格的 conversations
+    conversations: List[Dict[str, Any]] = raw.get("conversations", [])
+    if not conversations:
+        question: str = (raw.get("question") or "").strip()
+        answer: str = (raw.get("answer") or "").strip()
+    else:
+        question, answer = extract_question_and_answer(conversations)
+
     images: List[str] = raw.get("images") or ([] if raw.get("image_path") is None else [raw["image_path"]])
 
 
@@ -217,12 +234,15 @@ def build_item(
     ]
 
     images = [image.replace("/wangbenyou/shunian/workspace/iceberg/data/images", "/root/et/data/image_new") for image in images]
+    images = [image.replace("/wangbenyou/shunian/workspace/iceberg/data/images", "/root/et/data/image_new") for image in images]
     # 将图片加载为二进制字节，保证写入 parquet 的结构为 [{'bytes': bytes, 'path': str}]
     image_bytes_list: List[Dict[str, Any]] = []
     for img_path in images:
         # 统一展开与标准化路径，避免相对路径/波浪线等导致的不一致
         resolved_path = os.path.abspath(os.path.expanduser(img_path))
         if not os.path.isfile(resolved_path):
+            print(f"[WARN] Skip missing image: {resolved_path}")
+            continue
             print(f"[WARN] Skip missing image: {resolved_path}")
             continue
         try:
@@ -282,6 +302,7 @@ def main() -> None:
         choices=["strict", "simple", "hybrid", "extra_simple", "thinking", "normal", 'selected_simple', 'strong_tag'],
         default="strict",
         help="Choose instruction template: 'strict' for detailed constraints; 'simple' for minimal guidance without ordering constraints; 'hybrid' alternates simple/normal 1:1.",
+        help="Choose instruction template: 'strict' for detailed constraints; 'simple' for minimal guidance without ordering constraints; 'hybrid' alternates simple/normal 1:1.",
     )
     args = parser.parse_args()
 
@@ -329,6 +350,12 @@ def main() -> None:
         else:
             chosen_instruction = selected_instruction
         item = build_item(rec, args.data_source, split, idx, chosen_instruction)
+        if args.instruction_style == "hybrid":
+            hybrid_idx = random.random()
+            chosen_instruction = instruction_simple if (hybrid_idx < 0.5) else instruction_normal
+        else:
+            chosen_instruction = selected_instruction
+        item = build_item(rec, args.data_source, split, idx, chosen_instruction)
         data.append(item)
 
     # # Debug-print first few items before schema application
@@ -356,5 +383,6 @@ if __name__ == "__main__":
 
 
 '''
+python examples/data_preprocess/sharegpt_to_parquet.py --input_json /root/et/data/sft_demos_gemini-2.5-pro_sharegpt.json --local_dir /data/iceberg --split train  --instruction_style hybrid
 python examples/data_preprocess/sharegpt_to_parquet.py --input_json /root/et/data/sft_demos_gemini-2.5-pro_sharegpt.json --local_dir /data/iceberg --split train  --instruction_style hybrid
 '''
