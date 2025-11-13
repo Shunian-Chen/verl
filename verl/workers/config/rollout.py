@@ -101,6 +101,9 @@ class RolloutConfig(BaseConfig):
     do_sample: bool = True
     n: int = 1
 
+    # Sampling param for vLLM/sglang generation
+    repetition_penalty: float = 1.0
+
     # Early termination threshold for multi-turn rollout in sglang.
     # Abort remaining requests when (1 - over_sample_rate) * total_requests are completed.
     over_sample_rate: float = 0.0

@@ -1,0 +1,27 @@
+GPT Data Construction Pipeline Report
+================================================================================
+
+PIPELINE STATISTICS
+--------------------------------------------------------------------------------
+valid_examples: 86
+open_ended_questions: 74
+multiple_choice_questions: 12
+quality_validation_failures: 7
+failed_validation: 7
+total_items_processed: 900
+total_examples_generated: 2015
+
+API USAGE STATISTICS
+--------------------------------------------------------------------------------
+Total Requests: 277
+Successful: 277
+Failed: 1
+Generation Requests: 185
+Validation Requests: 92
+
+Total Tokens: 930,915
+Prompt Tokens: 415,465
+Completion Tokens: 515,450
+
+Total Cost: $0.98
+Avg Cost per Example: $0.0114

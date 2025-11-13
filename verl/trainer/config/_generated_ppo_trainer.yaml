@@ -39,6 +39,7 @@ actor_rollout_ref:
       - model
       - optimizer
       - extra
+      - hf_model
       load_contents: ${.save_contents}
       async_save: false
     optim:
@@ -321,6 +322,7 @@ critic:
     - model
     - optimizer
     - extra
+    - hf_model
     load_contents: ${.save_contents}
     async_save: false
   profiler:

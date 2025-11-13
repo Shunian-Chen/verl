@@ -91,7 +91,10 @@ def default_compute_score(
     
     elif data_source in ["iceberg"]:
         from . import iceberg
-        res = iceberg.compute_score(solution_str, ground_truth)
+        strong_tag_flag = False
+        if isinstance(extra_info, dict):
+            strong_tag_flag = bool(extra_info.get("strong_tag", False))
+        res = iceberg.compute_score(solution_str, ground_truth, extra_info=extra_info, strong_tag=strong_tag_flag)
 
     elif data_source in [
         "searchR1_nq",

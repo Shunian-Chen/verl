@@ -61,6 +61,14 @@ from verl.utils.torch_functional import masked_mean
 from verl.utils.tracking import ValidationGenerationsLogger
 
 
+def _safe_select_first(items):
+    if items is None:
+        return None
+    if isinstance(items, (list, tuple)):
+        return items[0] if items else None
+    return items
+
+
 @dataclass
 class ResourcePoolManager:
     """
@@ -456,7 +464,7 @@ class RayPPOTrainer:
 
         print(f"Dumped generations to {filename}")
 
-    def _maybe_log_val_generations(self, inputs, outputs, scores):
+    def _maybe_log_val_generations(self, inputs, outputs, scores, images):
         """Log a table of validation samples to the configured logger (wandb or swanlab)"""
 
         generations_to_log = self.config.trainer.log_val_generations
@@ -466,8 +474,8 @@ class RayPPOTrainer:
 
         import numpy as np
 
-        # Create tuples of (input, output, score) and sort by input text
-        samples = list(zip(inputs, outputs, scores, strict=True))
+        # Create tuples of (input, output, score, image) and sort by input text
+        samples = list(zip(inputs, outputs, scores, images, strict=True))
         samples.sort(key=lambda x: x[0])  # Sort by input text
 
         # Use fixed random seed for deterministic shuffling
@@ -595,7 +603,26 @@ class RayPPOTrainer:
 
             data_source_lst.append(test_batch.non_tensor_batch.get("data_source", ["unknown"] * reward_tensor.shape[0]))
 
-        self._maybe_log_val_generations(inputs=sample_inputs, outputs=sample_outputs, scores=sample_scores)
+        images = []
+        if self.processor is not None:
+            multi_modal_data_key = "multi_modal_data"
+            if multi_modal_data_key in test_batch.non_tensor_batch:
+                for data in test_batch.non_tensor_batch[multi_modal_data_key]:
+                    image_list = None
+                    if isinstance(data, dict):
+                        image_list = data.get("image", None)
+                    images.append(_safe_select_first(image_list))
+            else:
+                images = [None] * len(sample_inputs)
+        else:
+            images = [None] * len(sample_inputs)
+
+        self._maybe_log_val_generations(
+            inputs=sample_inputs,
+            outputs=sample_outputs,
+            scores=sample_scores,
+            images=images,
+        )
 
         # dump generations
         val_data_dir = self.config.trainer.get("validation_data_dir", None)

@@ -1,0 +1,202 @@
+{
+  "_comment": "This is a sample data_statistics.json output showing the structure",
+  "meta": {
+    "output_directory": "./test_output_example",
+    "timestamp": "2025-11-03T12:00:00.000000",
+    "total_valid_examples": 150,
+    "total_failed_examples": 48,
+    "total_examples": 198,
+    "overall_success_rate": 75.76,
+    "pipeline_report": {
+      "valid_examples": 150,
+      "failed_validation": 48,
+      "multiple_choice_questions": 65,
+      "open_ended_questions": 85,
+      "total_items_processed": 200,
+      "total_examples_generated": 150
+    }
+  },
+  "distribution_analysis": {
+    "question_strategies": {
+      "total_examples": 150,
+      "unique_values": 8,
+      "entropy": 2.654,
+      "top_value": "visual_perception",
+      "top_value_percentage": 22.7,
+      "distribution": [
+        {"value": "visual_perception", "count": 34, "percentage": 22.7},
+        {"value": "knowledge_integration", "count": 28, "percentage": 18.7},
+        {"value": "meta_cognitive", "count": 24, "percentage": 16.0}
+      ]
+    },
+    "categories": {
+      "unique_categories": 145,
+      "total_category_mentions": 892,
+      "avg_categories_per_example": 5.95,
+      "top_categories": [
+        {"category": "Category:21st-century American politicians", "count": 12, "percentage": 8.0}
+      ]
+    },
+    "question_types": {
+      "multiple_choice": {"count": 65, "percentage": 43.3},
+      "open_ended": {"count": 85, "percentage": 56.7}
+    },
+    "complexity": {
+      "total_examples": 150,
+      "unique_values": 3,
+      "distribution": [
+        {"value": "medium", "count": 89, "percentage": 59.3},
+        {"value": "high", "count": 42, "percentage": 28.0},
+        {"value": "low", "count": 19, "percentage": 12.7}
+      ]
+    },
+    "response_length": {
+      "count": 150,
+      "mean": 682.5,
+      "std": 124.3,
+      "min": 320,
+      "max": 1050,
+      "percentiles": {
+        "p25": 585,
+        "p50": 670,
+        "p75": 765,
+        "p90": 850,
+        "p95": 920,
+        "p99": 1010
+      }
+    },
+    "cycle_count": {
+      "count": 150,
+      "mean": 2.3,
+      "std": 0.8,
+      "min": 1,
+      "max": 5,
+      "percentiles": {
+        "p25": 2,
+        "p50": 2,
+        "p75": 3,
+        "p90": 3,
+        "p95": 4,
+        "p99": 5
+      }
+    }
+  },
+  "quality_metrics": {
+    "validation_scores": {
+      "count": 150,
+      "mean": 7.85,
+      "std": 0.92,
+      "min": 5.2,
+      "max": 9.8,
+      "percentiles": {
+        "p25": 7.2,
+        "p50": 7.9,
+        "p75": 8.5,
+        "p90": 9.0,
+        "p95": 9.3,
+        "p99": 9.7
+      }
+    },
+    "score_dimensions": {
+      "format_score": {"mean": 8.2, "std": 0.7},
+      "content_score": {"mean": 7.9, "std": 0.9},
+      "coherence_score": {"mean": 7.8, "std": 0.8},
+      "diversity_score": {"mean": 7.6, "std": 1.0},
+      "educational_score": {"mean": 7.9, "std": 0.9}
+    },
+    "success_by_strategy": {
+      "by_category": [
+        {"value": "visual_perception", "valid_count": 34, "failed_count": 8, "total": 42, "success_rate": 81.0},
+        {"value": "knowledge_integration", "valid_count": 28, "failed_count": 12, "total": 40, "success_rate": 70.0}
+      ],
+      "highest_success": "visual_perception",
+      "lowest_success": "multi_hop_reasoning"
+    }
+  },
+  "failure_analysis": {
+    "failure_types": {
+      "total_failures": 48,
+      "structure_failures": {"count": 12, "percentage": 25.0},
+      "quality_failures": {"count": 36, "percentage": 75.0}
+    },
+    "structure_errors": {
+      "total_count": 12,
+      "unique_error_types": 4,
+      "distribution": [
+        {"error_type": "not_alternating", "count": 6, "percentage": 50.0},
+        {"error_type": "text_between_tags", "count": 4, "percentage": 33.3}
+      ]
+    },
+    "quality_issues": {
+      "total_issues": 89,
+      "unique_issue_types": 15,
+      "top_20_issues": [
+        {"issue": "Does not address the question", "count": 18, "percentage": 20.2},
+        {"issue": "Insufficient visual analysis", "count": 14, "percentage": 15.7}
+      ]
+    },
+    "near_misses": {
+      "count": 15,
+      "percentage": 31.25,
+      "avg_score": 6.7
+    }
+  },
+  "data_quality_insights": {
+    "category_coverage": {
+      "unique_categories": 145,
+      "total_mentions": 892,
+      "gini_coefficient": 0.542,
+      "coverage_quality": "good"
+    },
+    "strategy_balance": {
+      "unique_strategies": 8,
+      "expected_percentage": 12.5,
+      "max_deviation": 10.2,
+      "is_balanced": true,
+      "entropy": 2.654,
+      "balance_quality": "good"
+    },
+    "quality_trends": {
+      "score_range": {"min": 5.2, "max": 9.8, "range": 4.6},
+      "outliers": {"low_count": 3, "high_count": 2},
+      "quality_tiers": {
+        "excellent": 24,
+        "good": 95,
+        "acceptable": 28,
+        "poor": 3
+      }
+    },
+    "mc_quality": {
+      "total_mc_questions": 65,
+      "correct_answer_distribution": [
+        {"answer": "A", "count": 18, "percentage": 27.7},
+        {"answer": "B", "count": 16, "percentage": 24.6},
+        {"answer": "C", "count": 17, "percentage": 26.2},
+        {"answer": "D", "count": 14, "percentage": 21.5}
+      ],
+      "answer_balance_quality": "good"
+    },
+    "imbalance_warnings": [
+      {
+        "type": "strategy_imbalance",
+        "severity": "low",
+        "message": "Strategy 'visual_perception' slightly over-represented at 22.7%",
+        "recommendation": "Monitor strategy distribution in future runs"
+      }
+    ]
+  },
+  "recommendations": [
+    {
+      "priority": "MEDIUM",
+      "category": "Overall Quality",
+      "issue": "Moderate success rate (75.8%)",
+      "recommendation": "Identify top failure patterns and address them systematically."
+    },
+    {
+      "priority": "MEDIUM",
+      "category": "Validation Tuning",
+      "issue": "Many near-miss failures (15 examples)",
+      "recommendation": "Consider adjusting validation thresholds or implementing validation retries for borderline cases."
+    }
+  ]
+}

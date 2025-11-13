@@ -15,10 +15,12 @@
 A unified tracking interface that supports logging data to different backend
 """
 
+import base64
 import dataclasses
 import os
 from enum import Enum
 from functools import partial
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -357,47 +359,72 @@ class ValidationGenerationsLogger:
         self._log_generations_to_wandb(samples, step, wandb)
 
     def _log_generations_to_wandb(self, samples, step, wandb):
-        """Log samples to wandb as a table"""
+        """将验证样本记录到 WandB，支持文本与图像。"""
 
-        # Create column names for all samples
-        columns = ["step"] + sum(
-            [[f"input_{i + 1}", f"output_{i + 1}", f"score_{i + 1}"] for i in range(len(samples))], []
-        )
+        columns = ["step", "input", "output", "score"]
+        has_images = any(len(sample) >= 4 and sample[3] is not None for sample in samples)
+        if has_images:
+            columns.append("image")
 
-        if not hasattr(self, "validation_table"):
-            # Initialize the table on first call
+        if not hasattr(self, "validation_table") or getattr(self.validation_table, "columns", []) != columns:
             self.validation_table = wandb.Table(columns=columns)
 
-        # Create a new table with same columns and existing data
-        # Workaround for https://github.com/wandb/wandb/issues/2981#issuecomment-1997445737
-        new_table = wandb.Table(columns=columns, data=self.validation_table.data)
+        new_table = wandb.Table(columns=columns, data=list(getattr(self.validation_table, "data", [])))
 
-        # Add new row with all data
-        row_data = []
-        row_data.append(step)
-        for sample in samples:
-            row_data.extend(sample)
+        for idx, sample in enumerate(samples):
+            input_text, output_text, score = sample[0], sample[1], sample[2]
+            row = [step, input_text, output_text, score]
+            if has_images:
+                image_entry = sample[3] if len(sample) >= 4 else None
+                row.append(self._prepare_wandb_image(image_entry, wandb, caption=f"sample_{idx}"))
+            new_table.add_data(*row)
 
-        new_table.add_data(*row_data)
-
-        # Update reference and log
         wandb.log({"val/generations": new_table}, step=step)
         self.validation_table = new_table
 
     def log_generations_to_swanlab(self, samples, step):
-        """Log samples to swanlab as text"""
+        """Log samples to swanlab as text and images"""
         import swanlab
 
         swanlab_table = swanlab.echarts.Table()
 
-        # Create column names
-        headers = ["step", "input", "output", "score"]
+        display_headers = ["step", "input", "output", "score"]
+        has_images = any(len(sample) >= 4 and sample[3] is not None for sample in samples)
+        if has_images:
+            display_headers.append("image")
 
-        swanlab_row_list = [[step, *sample] for sample in samples]
-        swanlab_table.add(headers=headers, rows=swanlab_row_list)
+        swanlab_row_list = []
+        for idx, sample in enumerate(samples):
+            input_text, output_text, score = sample[0], sample[1], sample[2]
+            row = [step, input_text, output_text, score]
+            if has_images:
+                image_entry = sample[3] if len(sample) >= 4 else None
+                row.append(self._prepare_swanlab_image(image_entry, swanlab, caption=f"sample_{idx}"))
+            swanlab_row_list.append(row)
+
+        swanlab_table.add(headers=display_headers, rows=swanlab_row_list)
 
         # Log to swanlab
         swanlab.log({"val/generations": swanlab_table}, step=step)
+
+    def _prepare_swanlab_image(self, image: Any, swanlab, _caption: str | None = None):
+        if image is None:
+            return None
+
+        from PIL import Image
+
+        processed_image, _ = self._normalize_image_payload(image)
+
+        if processed_image is None:
+            return None
+
+        if isinstance(processed_image, Image.Image):
+            return swanlab.Image(processed_image)
+
+        if isinstance(processed_image, str):
+            return swanlab.Image(processed_image)
+
+        return swanlab.Image(processed_image)
 
     def log_generations_to_mlflow(self, samples, step):
         """Log validation generation to mlflow as artifacts"""
@@ -448,6 +475,138 @@ class ValidationGenerationsLogger:
             table_plot=pd.DataFrame.from_records(table),
             iteration=step,
         )
+
+    def _prepare_wandb_image(self, image: Any, wandb, caption: str | None = None):
+        if image is None:
+            return None
+
+        processed_image, resolved_caption = self._normalize_image_payload(image)
+
+        if processed_image is None:
+            return None
+
+        if isinstance(processed_image, wandb.Image):
+            if caption and getattr(processed_image, "caption", None) in (None, ""):
+                processed_image.caption = caption
+            return processed_image
+
+        if isinstance(processed_image, str):
+            return wandb.Image(processed_image, caption=resolved_caption or caption)
+
+        return wandb.Image(processed_image, caption=resolved_caption or caption)
+
+    def _normalize_image_payload(self, image: Any) -> tuple[Any | None, str | None]:
+        caption: str | None = None
+
+        if isinstance(image, dict):
+            caption = image.get("caption")
+            if "image" in image:
+                image = image["image"]
+            elif "path" in image:
+                image = image["path"]
+            elif "bytes" in image:
+                image = self._bytes_to_pil(image["bytes"])
+            elif "b64_json" in image:
+                image = self._decode_base64_image(image["b64_json"])
+            elif "array" in image:
+                image = self._array_to_pil(image["array"])
+            elif "pil" in image:
+                image = image["pil"]
+
+        if hasattr(image, "to") and callable(getattr(image, "to", None)):
+            image = self._tensor_to_pil(image)
+
+        normalized = self._coerce_to_supported_image(image)
+        return normalized, caption
+
+    def _coerce_to_supported_image(self, image: Any):
+        if image is None:
+            return None
+
+        from PIL import Image
+
+        if isinstance(image, Image.Image):
+            return image
+
+        if isinstance(image, (bytes, bytearray)):
+            return self._bytes_to_pil(image)
+
+        if isinstance(image, str):
+            if os.path.exists(image):
+                return image
+            decoded = self._decode_base64_image(image)
+            if decoded is not None:
+                return decoded
+            return None
+
+        if "numpy" in str(type(image)):
+            return self._array_to_pil(image)
+
+        return image
+
+    def _tensor_to_pil(self, tensor):
+        try:
+            import torch
+        except ImportError:
+            return None
+
+        if not isinstance(tensor, torch.Tensor):
+            return None
+
+        tensor = tensor.detach().cpu()
+        if tensor.ndim == 4:
+            tensor = tensor[0]
+        if tensor.ndim == 3 and tensor.shape[0] in (1, 3):
+            tensor = tensor.permute(1, 2, 0)
+
+        return self._array_to_pil(tensor.numpy())
+
+    def _array_to_pil(self, array_like):
+        try:
+            import numpy as np
+        except ImportError:
+            return None
+
+        from PIL import Image
+
+        array = np.array(array_like)
+
+        if array.ndim == 4:
+            array = array[0]
+        if array.ndim == 3 and array.shape[-1] == 1:
+            array = array[..., 0]
+        if array.ndim == 3 and array.shape[0] in (1, 3):
+            array = np.transpose(array, (1, 2, 0))
+
+        if array.dtype != np.uint8:
+            array = np.clip(array, 0, 1)
+            array = (array * 255).astype(np.uint8)
+
+        return Image.fromarray(array)
+
+    def _bytes_to_pil(self, image_bytes: bytes | bytearray):
+        from PIL import Image
+
+        try:
+            buffer = BytesIO(image_bytes)
+            return Image.open(buffer).convert("RGB")
+        except Exception:
+            return None
+
+    def _decode_base64_image(self, data: str):
+        if not isinstance(data, str):
+            return None
+
+        try:
+            if data.startswith("data:image"):
+                data = data.split(",", 1)[1]
+            return self._bytes_to_pil(base64.b64decode(data))
+        except Exception:
+            return None
+
+    def _dict_to_pil(self, payload: dict):
+        image, _ = self._normalize_image_payload(payload)
+        return image
 
     def log_generations_to_tensorboard(self, samples, step):
         """Log samples to tensorboard as text"""

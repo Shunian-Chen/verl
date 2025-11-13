@@ -27,6 +27,7 @@ When working with Megatron:
 """
 
 import asyncio
+import json
 import getpass
 import logging
 import os
@@ -92,6 +93,49 @@ class vLLMRollout(BaseRollout):
         """
         super().__init__()
         self.config = config
+
+        token_attrs = (
+            "vision_start_token_id",
+            "vision_end_token_id",
+            "vision_token_id",
+            "image_token_id",
+            "video_token_id",
+        )
+
+        text_config = getattr(model_hf_config, "text_config", None)
+        token_attr_values = {}
+        if text_config is not None:
+            for attr in token_attrs:
+                if hasattr(text_config, attr):
+                    value = getattr(text_config, attr)
+                    if value is not None:
+                        token_attr_values[attr] = value
+                        if not hasattr(model_hf_config, attr):
+                            setattr(model_hf_config, attr, value)
+
+        import os
+        config_json_path = os.path.join(model_path, "config.json")
+        if token_attr_values and os.path.isdir(model_path) and os.path.isfile(config_json_path):
+            lock_path = config_json_path + ".lock"
+            try:
+                with FileLock(lock_path):
+                    with open(config_json_path, "r", encoding="utf-8") as f:
+                        hf_config_dict = json.load(f)
+
+                    updated = False
+                    for attr, value in token_attr_values.items():
+                        if attr not in hf_config_dict:
+                            hf_config_dict[attr] = value
+                            updated = True
+
+                    if updated:
+                        tmp_config_path = config_json_path + ".tmp"
+                        with open(tmp_config_path, "w", encoding="utf-8") as f:
+                            json.dump(hf_config_dict, f, indent=2)
+                            f.write("\n")
+                        os.replace(tmp_config_path, config_json_path)
+            except (json.JSONDecodeError, OSError):
+                logger.warning("Failed to harmonize vision token ids in %s", config_json_path)
 
         tensor_parallel_size = self.config.get("tensor_model_parallel_size", 1)
         assert tensor_parallel_size <= torch.distributed.get_world_size(), (
@@ -208,6 +252,7 @@ class vLLMRollout(BaseRollout):
             n=1,
             logprobs=0,  # can be set to 0 and let actor to recompute
             max_tokens=config.response_length,
+            repetition_penalty=config.get("repetition_penalty", 1.0)
         )
 
         kwargs["detokenize"] = False

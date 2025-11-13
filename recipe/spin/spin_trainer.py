@@ -456,7 +456,7 @@ class RaySPINTrainer:
         except Exception as e:
             print(f"Warning: Could not set total_training_steps in config. Structure missing? Error: {e}")
 
-    def _maybe_log_val_generations(self, inputs, outputs, scores):
+    def _maybe_log_val_generations(self, inputs, outputs, scores, images=None):
         """Log a table of validation samples to the configured logger (wandb or swanlab)"""
 
         generations_to_log = self.config.trainer.log_val_generations
@@ -467,7 +467,10 @@ class RaySPINTrainer:
         import numpy as np
 
         # Create tuples of (input, output, score) and sort by input text
-        samples = list(zip(inputs, outputs, scores, strict=True))
+        if images is None:
+            images = [None] * len(inputs)
+
+        samples = list(zip(inputs, outputs, scores, images, strict=True))
         samples.sort(key=lambda x: x[0])  # Sort by input text
 
         # Use fixed random seed for deterministic shuffling
@@ -488,6 +491,8 @@ class RaySPINTrainer:
         sample_inputs = []
         sample_outputs = []
         sample_scores = []
+
+        collected_images: list[Any] = []
 
         for test_data in self.val_dataloader:
             test_batch = DataProto.from_single_dict(test_data)
@@ -553,6 +558,9 @@ class RaySPINTrainer:
             scores = reward_tensor.sum(-1).cpu().tolist()
             sample_scores.extend(scores)
 
+            if self.processor is not None and "multi_modal_data" in test_batch.non_tensor_batch:
+                collected_images.extend(self._extract_images_from_batch(test_batch))
+
             reward_extra_infos_dict["reward"].extend(scores)
             if "reward_extra_info" in result:
                 for key, lst in result["reward_extra_info"].items():
@@ -560,7 +568,14 @@ class RaySPINTrainer:
 
             data_source_lst.append(test_batch.non_tensor_batch.get("data_source", ["unknown"] * reward_tensor.shape[0]))
 
-        self._maybe_log_val_generations(inputs=sample_inputs, outputs=sample_outputs, scores=sample_scores)
+        images = self._finalize_image_list(collected_images, len(sample_inputs))
+
+        self._maybe_log_val_generations(
+            inputs=sample_inputs,
+            outputs=sample_outputs,
+            scores=sample_scores,
+            images=images,
+        )
 
         # dump generations
         val_data_dir = self.config.trainer.get("validation_data_dir", None)

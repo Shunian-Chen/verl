@@ -1,0 +1,23 @@
+{
+  "processed_items": 900,
+  "total_examples": 2015,
+  "timestamp": "2025-11-04T14:23:37.188331",
+  "usage_stats": {
+    "total_requests": 277,
+    "successful_requests": 277,
+    "failed_requests": 1,
+    "total_prompt_tokens": 415465,
+    "total_completion_tokens": 515450,
+    "total_tokens": 930915,
+    "total_cost_usd": 0.9809075000000003,
+    "generation_requests": 185,
+    "validation_requests": 92,
+    "retry_count": 0
+  },
+  "mc_correct_counts": {
+    "A": 118,
+    "B": 118,
+    "C": 119,
+    "D": 119
+  }
+}

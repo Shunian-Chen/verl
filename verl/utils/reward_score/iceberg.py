@@ -16,6 +16,25 @@ import re
 from typing import Dict, Any, List, Tuple, Optional
 
 _SOLUTION_CLIP_CHARS = 300
+LOOK_START_SENT = "I'll start looking at the image."
+LOOK_END_SENT   = "I have finished looking at the image."
+THINK_START_SENT= "I'll start reasoning now."
+THINK_END_SENT  = "I have finished reasoning."
+
+# 模块级正则与常量，避免在函数内重复编译/硬编码
+TAG_TOKEN_RE = re.compile(r"<\s*(/)?\s*(look|think|answer)\s*>", flags=re.IGNORECASE)
+GENERIC_TAG_RE = re.compile(r"</?\s*([a-zA-Z][\w-]*)\s*>")
+DEFAULT_LENGTH_REWARD_THRESH = 0
+
+# 精确匹配（允许两端空白，内部任意内容）
+LOOK_INNER_RE  = re.compile(
+    rf"^\s*{re.escape(LOOK_START_SENT)}\s*(.*?)\s*{re.escape(LOOK_END_SENT)}\s*$",
+    flags=re.DOTALL
+)
+THINK_INNER_RE = re.compile(
+    rf"^\s*{re.escape(THINK_START_SENT)}\s*(.*?)\s*{re.escape(THINK_END_SENT)}\s*$",
+    flags=re.DOTALL
+)
 
 def extract_mcq_option_letter(text: str) -> Optional[str]:
     """从文本中解析选项字母（A-D）。优先匹配 <answer> 标签内的选项，其次回退到通用模式。
@@ -62,7 +81,12 @@ def extract_solution(solution_str) -> str:
 
     return answer_text
 
-def validate_assistant_format(output_text: str) -> Dict[str, Any]:
+def validate_assistant_format_with_strong_tag(output_text: str) -> Dict[str, Any]:
+    """强标签校验薄包装：委托给 validate_assistant_format(..., strong_tag=True)。"""
+    return validate_assistant_format(output_text, strong_tag=True)
+
+
+def validate_assistant_format(output_text: str, strong_tag: bool = False) -> Dict[str, Any]:
     """校验 assistant 输出是否符合格式协议：
     - 由若干 <look>/<think> 严格交替的区块组成（可从 <look> 或 <think> 开始），
     - 以且仅以一个 <answer> 区块结尾，
@@ -84,19 +108,18 @@ def validate_assistant_format(output_text: str) -> Dict[str, Any]:
     s = (output_text or "").strip()
     errors: List[str] = []
 
-    # 提前检查禁止词
-    if re.search(r"background\s*note", s, flags=re.IGNORECASE):
-        errors.append("输出中包含被禁止的 'BACKGROUND NOTE' 字样")
+    # # 提前检查禁止词
+    # if re.search(r"background\s*note", s, flags=re.IGNORECASE):
+    #     errors.append("输出中包含被禁止的 'BACKGROUND NOTE' 字样")
 
     # 以栈解析标签，确保成对闭合与顺序合法，并提取区块
-    tag_token_re = re.compile(r"<\s*(/)?\s*(look|think|answer)\s*>", flags=re.IGNORECASE)
     stack: List[Tuple[str, int, int]] = []  # (tag, open_start, open_end)
     blocks: List[Tuple[str, str, int, int]] = []  # (tag_lower, inner, block_start, block_end)
     errors_stack: List[str] = []
     last_index = 0
     covered_spans: List[Tuple[int, int]] = []
 
-    for m in tag_token_re.finditer(s):
+    for m in TAG_TOKEN_RE.finditer(s):
         is_close = m.group(1) is not None
         tag = m.group(2).lower()
         if not is_close:
@@ -146,13 +169,13 @@ def validate_assistant_format(output_text: str) -> Dict[str, Any]:
                 errors_stack.append("存在区块之外的多余非空文本（应仅由这些区块组成）")
             else:
                 # 仅空白：限制最多 1 个换行符
-                if inter_residual.count("\n") > 1:
-                    errors_stack.append("不同标签之间最多允许一个换行符")
+                if inter_residual.count("\n") > 2:
+                    errors_stack.append("不同标签之间最多允许两个换行符")
 
     # 若完全未解析出任何区块，直接返回错误
     if not blocks:
         errors.extend(errors_stack or ["未找到任何 <look>/<think>/<answer> 区块"])
-        return {
+        ret = {
             "valid": False,
             "errors": errors,
             "tags": [],
@@ -161,6 +184,11 @@ def validate_assistant_format(output_text: str) -> Dict[str, Any]:
             "num_answer": 0,
             "answer": {"raw": "", "letter": None, "text": None},
         }
+        if strong_tag:
+            ret["content_length"] = 0
+            ret["look_bodies"] = []
+            ret["think_bodies"] = []
+        return ret
 
     # 合并栈解析阶段的错误
     errors.extend(errors_stack)
@@ -242,14 +270,42 @@ def validate_assistant_format(output_text: str) -> Dict[str, Any]:
                 answer_letter = letter
                 errors.append("<answer> 未以 'B. 文本' 或 'C) 文本' 的格式给出")
 
+    # 若启用 strong_tag，则对 <look>/<think> 内部执行短句硬约束并抽取主体
+    look_bodies: List[str] = []
+    think_bodies: List[str] = []
+    content_length: int = 0
+    if strong_tag:
+        for tag, inner, _, _ in blocks:
+            if tag == "look":
+                mm = LOOK_INNER_RE.match(inner.strip())
+                if not mm:
+                    errors.append(
+                        "<look> 必须以精确短句 "
+                        f"\"{LOOK_START_SENT}\" 开始，并以 "
+                        f"\"{LOOK_END_SENT}\" 结束"
+                    )
+                else:
+                    look_bodies.append(mm.group(1))
+            elif tag == "think":
+                mm = THINK_INNER_RE.match(inner.strip())
+                if not mm:
+                    errors.append(
+                        "<think> 必须以精确短句 "
+                        f"\"{THINK_START_SENT}\" 开始，并以 "
+                        f"\"{THINK_END_SENT}\" 结束"
+                    )
+                else:
+                    think_bodies.append(mm.group(1))
+        content_length = sum(len(b) for b in look_bodies) + sum(len(b) for b in think_bodies)
+
     # 检查是否存在未允许的其它标签（宽松检查）
-    generic_tags = re.findall(r"</?\s*([a-zA-Z][\w-]*)\s*>", s)
+    generic_tags = GENERIC_TAG_RE.findall(s)
     disallowed = [t for t in generic_tags if t.lower() not in ("look", "think", "answer")]
     if disallowed:
         # 若确实只由这三种区块构成，理论上不会出现；此处作为稳健性提示
         errors.append(f"检测到未允许的标签: {sorted(set([t.lower() for t in disallowed]))}")
 
-    return {
+    ret: Dict[str, Any] = {
         "valid": len(errors) == 0,
         "errors": errors,
         "tags": tags_seq,
@@ -258,6 +314,11 @@ def validate_assistant_format(output_text: str) -> Dict[str, Any]:
         "num_answer": num_answer,
         "answer": {"raw": answer_raw, "letter": answer_letter, "text": answer_text},
     }
+    if strong_tag:
+        ret["content_length"] = content_length
+        ret["look_bodies"] = look_bodies
+        ret["think_bodies"] = think_bodies
+    return ret
 
 def compute_score(
     solution_str: str,
@@ -265,6 +326,8 @@ def compute_score(
     method: str = "strict",
     format_score: float = 1.0,
     score: float = 1.0,
+    extra_info: Optional[Dict[str, Any]] = None,
+    strong_tag: bool = False,
 ) -> Dict[str, Any]:
     """综合格式校验与答案正确性的评分函数（面向含 <look>/<think>/<answer> 的 MCQ）。
 
@@ -281,7 +344,7 @@ def compute_score(
     - method 参数保留以兼容旧接口，但此实现不使用该参数。
     """
     # 1) 进行格式校验并提取 <answer>
-    fmt = validate_assistant_format(solution_str or "")
+    fmt = validate_assistant_format(solution_str or "", strong_tag=strong_tag)
 
     predicted_letter: Optional[str] = None
     if isinstance(fmt, dict):
@@ -300,10 +363,76 @@ def compute_score(
         and predicted_letter.upper() == gt_letter.upper()
     )
 
-    # 4) 计算奖励（格式 + 答案）
-    format_reward = float(format_score) if fmt.get("valid", False) else 0.0
+    # 4) 计算奖励（格式 + 答案 + 可选长度）
+    format_ok = bool(fmt.get("valid", False))
+    format_reward = float(format_score) if format_ok else 0.0
     answer_reward = float(score) if is_correct else 0.0
-    total_reward = format_reward + answer_reward
+
+    format_answer_product = False
+    if isinstance(extra_info, dict):
+        format_answer_product = bool(extra_info.get("format_answer_product", False))
+
+    if format_answer_product:
+        combined_format_answer_reward = format_reward * answer_reward
+        format_answer_reward_mode = "product"
+    else:
+        combined_format_answer_reward = format_reward + answer_reward
+        format_answer_reward_mode = "sum"
+
+    # 可选：长度奖励，由外部 extra_info 控制，最大为 1
+    length_reward = 0.0
+    if isinstance(extra_info, dict) and extra_info.get("enable_length_reward", False):
+        # 只有格式正确时才计算长度奖励
+        if format_ok:
+            try:
+                reward_cap_value = extra_info.get("reward_max_length", extra_info.get("length_reward_max_len", 0))
+                max_len = int(reward_cap_value or 0)
+
+                # 优先使用上游提供的有效响应长度（通常为 token 数）
+                cur_len_raw = extra_info.get("response_valid_length")
+                if cur_len_raw is not None:
+                    cur_len = int(cur_len_raw)
+                else:
+                    # 回退：使用解析出的“内容区长度”（字符数）
+                    cur_len = int(fmt.get("content_length", 0))
+                    # 若未能解析（极端情况），再回退到全文字符长度
+                    if cur_len <= 0:
+                        cur_len = len(solution_str or "")
+
+                if max_len > 0:
+                    M = float(max_len)
+                    if extra_info.get("enable_length_reward") == 2:
+                        # 奖励最多给到最大长度的一半，超过一半的部分扣除奖励
+                        thresh = M / 2.0
+                    else:
+                        thresh = float(DEFAULT_LENGTH_REWARD_THRESH)
+
+                    # 夹紧阈值到 [0, M]
+                    if thresh < 0.0:
+                        thresh = 0.0
+                    elif thresh > M:
+                        thresh = M
+
+                    # 对超过最大长度部分采用线性惩罚：
+                    # - 当长度 <= (M - thresh)：按 L/M 线性上升，封顶 1；
+                    # - 当长度 >  (M - thresh)：从 1 线性衰减，在 (M + (M - thresh)) 时降为 0。
+                    L = max(cur_len, 0)
+                    if L <= M - thresh:
+                        length_reward = min(L / M, 1.0)
+                    else:
+                        # 为保证在分界点处连续：右段从边界值 r0 = (M - thresh)/M 线性衰减到 0
+                        over = L - (M - thresh)
+                        boundary_value = (M - thresh) / M if M > 0 else 0.0
+                        length_reward = max(boundary_value * (1.0 - (over / M)), 0.0)
+                else:
+                    length_reward = 0.0
+            except Exception:
+                length_reward = 0.0
+        else:
+            # 格式不合格：不给长度分
+            length_reward = 0.0
+
+    total_reward = combined_format_answer_reward + float(length_reward)
 
     return {
         "score": total_reward,
@@ -313,10 +442,15 @@ def compute_score(
         "ground_truth": gt_letter,
         "format_reward": format_reward,
         "answer_reward": answer_reward,
+        "length_reward": float(length_reward),
+        "combined_format_answer_reward": combined_format_answer_reward,
+        "format_answer_reward_mode": format_answer_reward_mode,
         "num_look": fmt.get("num_look", 0),
         "num_think": fmt.get("num_think", 0),
         "num_answer": fmt.get("num_answer", 0),
         "tags": fmt.get("tags", []),
+        # 便于上游日志/分析
+        "content_length": fmt.get("content_length", 0),
     }
 
 def compute_score_with_chain_bonus(
@@ -327,6 +461,7 @@ def compute_score_with_chain_bonus(
     score: float = 1.0,
     chain_per_round: float = 0.1,
     chain_max_rounds: int = 3,
+    extra_info: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """在 compute_score 基础上，轻微奖励多轮 <look><think>。
 
@@ -345,6 +480,7 @@ def compute_score_with_chain_bonus(
         method=method,
         format_score=format_score,
         score=score,
+        extra_info=extra_info,
     )
 
     fmt_info = base.get("format") or {}

@@ -1,0 +1,1087 @@
+{
+  "meta": {
+    "output_directory": "test_output_gpt5_new",
+    "timestamp": "2025-11-03T22:56:12.959442",
+    "total_valid_examples": 15,
+    "total_failed_examples": 10,
+    "total_examples": 25,
+    "overall_success_rate": 60.0,
+    "pipeline_report": {
+      "tag_structure_failures": 10,
+      "failed_validation": 10,
+      "valid_examples": 15,
+      "open_ended_questions": 9,
+      "multiple_choice_questions": 6,
+      "total_items_processed": 5,
+      "total_examples_generated": 15
+    }
+  },
+  "distribution_analysis": {
+    "question_strategies": {
+      "total_examples": 15,
+      "unique_values": 6,
+      "distribution": [
+        {
+          "value": "visual_perception",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "value": "meta_cognitive",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "value": "knowledge_integration",
+          "count": 3,
+          "percentage": 20.0
+        },
+        {
+          "value": "comparative_analysis",
+          "count": 2,
+          "percentage": 13.33
+        },
+        {
+          "value": "multi_hop_reasoning",
+          "count": 1,
+          "percentage": 6.67
+        },
+        {
+          "value": "inferential",
+          "count": 1,
+          "percentage": 6.67
+        }
+      ],
+      "entropy": 2.39,
+      "top_value": "visual_perception",
+      "top_value_percentage": 26.67
+    },
+    "categories": {
+      "unique_categories": 70,
+      "total_category_mentions": 208,
+      "avg_categories_per_example": 13.87,
+      "top_categories": [
+        {
+          "category": "Category:17th-century BC establishments",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "category": "Category:Capitals in Asia",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "category": "Category:Capitals of Bengal",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "category": "Category:Cities in Bangladesh",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "category": "Category:Dhaka",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "category": "Category:Populated places established in 1608",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "category": "Category:Populated places in Dhaka Division",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "category": "Category:South Asia",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "category": "Category:1755 births",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "category": "Category:1814 deaths",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "category": "Category:18th-century American politicians",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "category": "Category:American Congregationalists",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "category": "Category:American people of Welsh descent",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "category": "Category:Continental Army officers from New Hampshire",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "category": "Category:Continental Army staff officers",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "category": "Category:Continental Congressmen from New Hampshire",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "category": "Category:Democratic-Republican Party United States senators",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "category": "Category:Federalist Party members of the United States House of Representatives from New Hampshire",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "category": "Category:Founding Fathers of the United States",
+          "count": 4,
+          "percentage": 26.67
+        },
+        {
+          "category": "Category:Gilman family of New Hampshire",
+          "count": 4,
+          "percentage": 26.67
+        }
+      ],
+      "cooccurrence_patterns": [
+        {
+          "category_1": "Category:17th-century BC establishments",
+          "category_2": "Category:Capitals in Asia",
+          "count": 4
+        },
+        {
+          "category_1": "Category:17th-century BC establishments",
+          "category_2": "Category:Capitals of Bengal",
+          "count": 4
+        },
+        {
+          "category_1": "Category:17th-century BC establishments",
+          "category_2": "Category:Cities in Bangladesh",
+          "count": 4
+        },
+        {
+          "category_1": "Category:17th-century BC establishments",
+          "category_2": "Category:Dhaka",
+          "count": 4
+        },
+        {
+          "category_1": "Category:17th-century BC establishments",
+          "category_2": "Category:Populated places established in 1608",
+          "count": 4
+        }
+      ]
+    },
+    "question_types": {
+      "multiple_choice": {
+        "count": 6,
+        "percentage": 40.0
+      },
+      "open_ended": {
+        "count": 9,
+        "percentage": 60.0
+      }
+    },
+    "complexity": {
+      "total_examples": 15,
+      "unique_values": 2,
+      "distribution": [
+        {
+          "value": "medium",
+          "count": 12,
+          "percentage": 80.0
+        },
+        {
+          "value": "complex",
+          "count": 3,
+          "percentage": 20.0
+        }
+      ],
+      "entropy": 0.722,
+      "top_value": "medium",
+      "top_value_percentage": 80.0
+    },
+    "response_length": {
+      "count": 15,
+      "mean": 759.67,
+      "std": 105.16,
+      "min": 667.0,
+      "max": 1020.0,
+      "percentiles": {
+        "p25": 697.0,
+        "p50": 713.0,
+        "p75": 766.0,
+        "p90": 932.1999999999999,
+        "p95": 977.3,
+        "p99": 1020.0
+      },
+      "histogram": {
+        "counts": [
+          3,
+          2,
+          4,
+          0,
+          1,
+          1,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          1
+        ],
+        "bin_edges": [
+          667.0,
+          684.65,
+          702.3,
+          719.95,
+          737.6,
+          755.25,
+          772.9,
+          790.55,
+          808.2,
+          825.85,
+          843.5,
+          861.15,
+          878.8,
+          896.45,
+          914.1,
+          931.75,
+          949.4,
+          967.05,
+          984.7,
+          1002.35,
+          1020.0
+        ]
+      }
+    },
+    "cycle_count": {
+      "count": 15,
+      "mean": 2.2,
+      "std": 0.4,
+      "min": 2,
+      "max": 3,
+      "percentiles": {
+        "p25": 2,
+        "p50": 2,
+        "p75": 2,
+        "p90": 3,
+        "p95": 3,
+        "p99": 3
+      },
+      "histogram": {
+        "counts": [
+          12,
+          3
+        ],
+        "bin_edges": [
+          2.0,
+          3.0,
+          4.0
+        ]
+      }
+    }
+  },
+  "quality_metrics": {
+    "validation_scores": {
+      "count": 15,
+      "mean": 8.25,
+      "std": 0.48,
+      "min": 7.5,
+      "max": 8.75,
+      "percentiles": {
+        "p25": 7.75,
+        "p50": 8.5,
+        "p75": 8.625,
+        "p90": 8.75,
+        "p95": 8.75,
+        "p99": 8.75
+      },
+      "histogram": {
+        "counts": [
+          3,
+          0,
+          0,
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          5,
+          0,
+          0,
+          4
+        ],
+        "bin_edges": [
+          7.5,
+          7.56,
+          7.62,
+          7.69,
+          7.75,
+          7.81,
+          7.88,
+          7.94,
+          8.0,
+          8.06,
+          8.12,
+          8.19,
+          8.25,
+          8.31,
+          8.38,
+          8.44,
+          8.5,
+          8.56,
+          8.62,
+          8.69,
+          8.75
+        ]
+      }
+    },
+    "score_dimensions": {},
+    "success_by_strategy": {
+      "by_category": [
+        {
+          "value": "meta_cognitive",
+          "valid_count": 4,
+          "failed_count": 1,
+          "total": 5,
+          "success_rate": 80.0
+        },
+        {
+          "value": "visual_perception",
+          "valid_count": 4,
+          "failed_count": 1,
+          "total": 5,
+          "success_rate": 80.0
+        },
+        {
+          "value": "comparative_analysis",
+          "valid_count": 2,
+          "failed_count": 2,
+          "total": 4,
+          "success_rate": 50.0
+        },
+        {
+          "value": "inferential",
+          "valid_count": 1,
+          "failed_count": 3,
+          "total": 4,
+          "success_rate": 25.0
+        },
+        {
+          "value": "knowledge_integration",
+          "valid_count": 3,
+          "failed_count": 1,
+          "total": 4,
+          "success_rate": 75.0
+        },
+        {
+          "value": "multi_hop_reasoning",
+          "valid_count": 1,
+          "failed_count": 2,
+          "total": 3,
+          "success_rate": 33.33
+        }
+      ],
+      "highest_success": "meta_cognitive",
+      "lowest_success": "inferential"
+    },
+    "success_by_complexity": {
+      "by_category": [
+        {
+          "value": "medium",
+          "valid_count": 12,
+          "failed_count": 0,
+          "total": 12,
+          "success_rate": 100.0
+        },
+        {
+          "value": "unknown",
+          "valid_count": 0,
+          "failed_count": 10,
+          "total": 10,
+          "success_rate": 0.0
+        },
+        {
+          "value": "complex",
+          "valid_count": 3,
+          "failed_count": 0,
+          "total": 3,
+          "success_rate": 100.0
+        }
+      ],
+      "highest_success": "medium",
+      "lowest_success": "unknown"
+    },
+    "success_by_question_type": {
+      "multiple_choice": {
+        "valid_count": 6,
+        "failed_count": 0,
+        "total": 6,
+        "success_rate": 100.0
+      },
+      "open_ended": {
+        "valid_count": 9,
+        "failed_count": 10,
+        "total": 19,
+        "success_rate": 47.37
+      }
+    },
+    "success_by_category": {
+      "top_20_by_frequency": [
+        {
+          "category": "Category:12th-century conflicts",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:12th century in England",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:12th century in France",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:13th-century conflicts",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:13th century in England",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:13th century in France",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:Anglo-French wars",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:Capetian dynasty",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:Geopolitical rivalry",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:House of Plantagenet",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:Warfare of the Middle Ages",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:Wars involving England",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:Wars involving France",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:European exploration of Australia",
+          "valid_count": 3,
+          "failed_count": 2,
+          "total": 5,
+          "success_rate": 60.0
+        },
+        {
+          "category": "Category:Maritime history",
+          "valid_count": 3,
+          "failed_count": 2,
+          "total": 5,
+          "success_rate": 60.0
+        },
+        {
+          "category": "Category:17th-century BC establishments",
+          "valid_count": 4,
+          "failed_count": 1,
+          "total": 5,
+          "success_rate": 80.0
+        },
+        {
+          "category": "Category:Capitals in Asia",
+          "valid_count": 4,
+          "failed_count": 1,
+          "total": 5,
+          "success_rate": 80.0
+        },
+        {
+          "category": "Category:Capitals of Bengal",
+          "valid_count": 4,
+          "failed_count": 1,
+          "total": 5,
+          "success_rate": 80.0
+        },
+        {
+          "category": "Category:Cities in Bangladesh",
+          "valid_count": 4,
+          "failed_count": 1,
+          "total": 5,
+          "success_rate": 80.0
+        },
+        {
+          "category": "Category:Dhaka",
+          "valid_count": 4,
+          "failed_count": 1,
+          "total": 5,
+          "success_rate": 80.0
+        }
+      ],
+      "top_10_by_success": [
+        {
+          "category": "Category:17th-century BC establishments",
+          "valid_count": 4,
+          "failed_count": 1,
+          "total": 5,
+          "success_rate": 80.0
+        },
+        {
+          "category": "Category:Capitals in Asia",
+          "valid_count": 4,
+          "failed_count": 1,
+          "total": 5,
+          "success_rate": 80.0
+        },
+        {
+          "category": "Category:Capitals of Bengal",
+          "valid_count": 4,
+          "failed_count": 1,
+          "total": 5,
+          "success_rate": 80.0
+        },
+        {
+          "category": "Category:Cities in Bangladesh",
+          "valid_count": 4,
+          "failed_count": 1,
+          "total": 5,
+          "success_rate": 80.0
+        },
+        {
+          "category": "Category:Dhaka",
+          "valid_count": 4,
+          "failed_count": 1,
+          "total": 5,
+          "success_rate": 80.0
+        },
+        {
+          "category": "Category:Populated places established in 1608",
+          "valid_count": 4,
+          "failed_count": 1,
+          "total": 5,
+          "success_rate": 80.0
+        },
+        {
+          "category": "Category:Populated places in Dhaka Division",
+          "valid_count": 4,
+          "failed_count": 1,
+          "total": 5,
+          "success_rate": 80.0
+        },
+        {
+          "category": "Category:South Asia",
+          "valid_count": 4,
+          "failed_count": 1,
+          "total": 5,
+          "success_rate": 80.0
+        },
+        {
+          "category": "Category:1755 births",
+          "valid_count": 4,
+          "failed_count": 1,
+          "total": 5,
+          "success_rate": 80.0
+        },
+        {
+          "category": "Category:1814 deaths",
+          "valid_count": 4,
+          "failed_count": 1,
+          "total": 5,
+          "success_rate": 80.0
+        }
+      ],
+      "bottom_10_by_success": [
+        {
+          "category": "Category:12th-century conflicts",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:12th century in England",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:12th century in France",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:13th-century conflicts",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:13th century in England",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:13th century in France",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:Anglo-French wars",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:Capetian dynasty",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:Geopolitical rivalry",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        },
+        {
+          "category": "Category:House of Plantagenet",
+          "valid_count": 1,
+          "failed_count": 4,
+          "total": 5,
+          "success_rate": 20.0
+        }
+      ]
+    }
+  },
+  "failure_analysis": {
+    "failure_types": {
+      "total_failures": 10,
+      "structure_failures": {
+        "count": 10,
+        "percentage": 100.0
+      },
+      "quality_failures": {
+        "count": 0,
+        "percentage": 0.0
+      }
+    },
+    "structure_errors": {
+      "total_count": 10,
+      "unique_error_types": 1,
+      "distribution": [
+        {
+          "error_type": "text_after_tags",
+          "count": 10,
+          "percentage": 100.0
+        }
+      ]
+    },
+    "quality_issues": {
+      "total_issues": 10,
+      "unique_issue_types": 10,
+      "top_20_issues": [
+        {
+          "issue": "Found non-empty text after last tag: \"<answer>\nDelacroix’s dramatic, sanctified image of\"",
+          "count": 1,
+          "percentage": 10.0
+        },
+        {
+          "issue": "Found non-empty text after last tag: \"<answer>\nDelacroix’s choice to place Saint Louis h\"",
+          "count": 1,
+          "percentage": 10.0
+        },
+        {
+          "issue": "Found non-empty text after last tag: \"<answer>\nCompared to medieval illuminations that d\"",
+          "count": 1,
+          "percentage": 10.0
+        },
+        {
+          "issue": "Found non-empty text after last tag: \"<answer>\nSigns that this is Louis IX leading early\"",
+          "count": 1,
+          "percentage": 10.0
+        },
+        {
+          "issue": "Found non-empty text after last tag: \"<answer>\nBass’s 1797–1798 red-dashed route follows\"",
+          "count": 1,
+          "percentage": 10.0
+        },
+        {
+          "issue": "Found non-empty text after last tag: \"<answer>\nBeyond measuring shorelines, the late‑179\"",
+          "count": 1,
+          "percentage": 10.0
+        },
+        {
+          "issue": "Found non-empty text after last tag: \"<answer>\nThe semi-circular arch and slender column\"",
+          "count": 1,
+          "percentage": 10.0
+        },
+        {
+          "issue": "Found non-empty text after last tag: \"<answer>\nRamage’s miniature achieves intimacy thro\"",
+          "count": 1,
+          "percentage": 10.0
+        },
+        {
+          "issue": "Found non-empty text after last tag: \"<answer>\nTheir formal attire—tailored blazers, pea\"",
+          "count": 1,
+          "percentage": 10.0
+        },
+        {
+          "issue": "Found non-empty text after last tag: \"<answer>\nThis moment symbolizes bipartisan continu\"",
+          "count": 1,
+          "percentage": 10.0
+        }
+      ]
+    },
+    "failure_score_distribution": {
+      "count": 10,
+      "mean": 0.0,
+      "std": 0.0,
+      "min": 0.0,
+      "max": 0.0,
+      "percentiles": {
+        "p25": 0.0,
+        "p50": 0.0,
+        "p75": 0.0,
+        "p90": 0.0,
+        "p95": 0.0,
+        "p99": 0.0
+      },
+      "histogram": {
+        "counts": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          10,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "bin_edges": [
+          -0.5,
+          -0.45,
+          -0.4,
+          -0.35,
+          -0.3,
+          -0.25,
+          -0.2,
+          -0.15,
+          -0.1,
+          -0.05,
+          0.0,
+          0.05,
+          0.1,
+          0.15,
+          0.2,
+          0.25,
+          0.3,
+          0.35,
+          0.4,
+          0.45,
+          0.5
+        ]
+      }
+    },
+    "near_misses": {
+      "count": 0,
+      "percentage": 0.0,
+      "avg_score": 0
+    }
+  },
+  "data_quality_insights": {
+    "category_coverage": {
+      "unique_categories": 70,
+      "total_mentions": 208,
+      "gini_coefficient": -0.178,
+      "coverage_quality": "good"
+    },
+    "strategy_balance": {
+      "unique_strategies": 6,
+      "expected_percentage": 16.67,
+      "max_deviation": 10.0,
+      "is_balanced": true,
+      "entropy": 2.39,
+      "balance_quality": "good"
+    },
+    "quality_trends": {
+      "score_range": {
+        "min": 7.5,
+        "max": 8.75,
+        "range": 1.25
+      },
+      "outliers": {
+        "low_count": 0,
+        "high_count": 0,
+        "low_threshold": 6.44,
+        "high_threshold": 9.94
+      },
+      "quality_tiers": {
+        "excellent": 0,
+        "good": 15,
+        "acceptable": 0,
+        "poor": 0
+      }
+    },
+    "lta_patterns": {
+      "cycle_distribution": {
+        "count": 15,
+        "mean": 2.2,
+        "std": 0.4,
+        "min": 2,
+        "max": 3,
+        "percentiles": {
+          "p25": 2,
+          "p50": 2,
+          "p75": 2,
+          "p90": 3,
+          "p95": 3,
+          "p99": 3
+        },
+        "histogram": {
+          "counts": [
+            12,
+            3
+          ],
+          "bin_edges": [
+            2.0,
+            3.0,
+            4.0
+          ]
+        }
+      },
+      "cycle_word_correlation": 0.938,
+      "avg_words_per_cycle_by_cycle_count": {
+        "2": 355.17,
+        "3": 319.0
+      }
+    },
+    "mc_quality": {
+      "total_mc_questions": 6,
+      "option_count_stats": {
+        "count": 6,
+        "mean": 4.0,
+        "std": 0.0,
+        "min": 4,
+        "max": 4,
+        "percentiles": {
+          "p25": 4,
+          "p50": 4,
+          "p75": 4,
+          "p90": 4,
+          "p95": 4,
+          "p99": 4
+        },
+        "histogram": {
+          "counts": [
+            6
+          ],
+          "bin_edges": [
+            4.0,
+            5.0
+          ]
+        }
+      },
+      "correct_answer_distribution": [
+        {
+          "answer": "A",
+          "count": 6,
+          "percentage": 100.0
+        }
+      ],
+      "mc_quality_scores": {
+        "count": 6,
+        "mean": 7.88,
+        "std": 0.38,
+        "min": 7.5,
+        "max": 8.5,
+        "percentiles": {
+          "p25": 7.5625,
+          "p50": 7.75,
+          "p75": 8.125,
+          "p90": 8.375,
+          "p95": 8.4375,
+          "p99": 8.5
+        },
+        "histogram": {
+          "counts": [
+            2,
+            0,
+            0,
+            0,
+            0,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            1
+          ],
+          "bin_edges": [
+            7.5,
+            7.55,
+            7.6,
+            7.65,
+            7.7,
+            7.75,
+            7.8,
+            7.85,
+            7.9,
+            7.95,
+            8.0,
+            8.05,
+            8.1,
+            8.15,
+            8.2,
+            8.25,
+            8.3,
+            8.35,
+            8.4,
+            8.45,
+            8.5
+          ]
+        }
+      },
+      "answer_balance_quality": "imbalanced"
+    },
+    "imbalance_warnings": [
+      {
+        "type": "complexity_imbalance",
+        "severity": "low",
+        "message": "Complexity \"medium\" is over-represented at 80.0%",
+        "recommendation": "Balance complexity levels for robust model training"
+      },
+      {
+        "type": "small_dataset",
+        "severity": "high",
+        "message": "Only 15 valid examples - too small for robust training",
+        "recommendation": "Generate more data (target: 1000+ examples minimum)"
+      }
+    ]
+  },
+  "recommendations": [
+    {
+      "priority": "MEDIUM",
+      "category": "Overall Quality",
+      "issue": "Moderate success rate (60.0%)",
+      "recommendation": "Identify top failure patterns and address them systematically."
+    }
+  ]
+}

@@ -27,7 +27,18 @@ from verl.workers.reward_manager.abstract import AbstractRewardManager
 class NaiveRewardManager(AbstractRewardManager):
     """The reward manager."""
 
-    def __init__(self, tokenizer, num_examine, compute_score=None, reward_fn_key="data_source") -> None:
+    def __init__(
+        self,
+        tokenizer,
+        num_examine,
+        compute_score=None,
+        reward_fn_key="data_source",
+        enable_length_reward: int = 0,
+        length_reward_max_len: int | None = None,
+        reward_max_length: int | None = None,
+        format_answer_product: bool = False,
+        strong_tag: bool = False,
+    ) -> None:
         """
         Initialize the NaiveRewardManager instance.
 
@@ -37,11 +48,38 @@ class NaiveRewardManager(AbstractRewardManager):
             compute_score: A function to compute the reward score. If None, `default_compute_score` will be used.
             reward_fn_key: The key used to access the data source in the non-tensor batch data. Defaults to
                 "data_source".
+            enable_length_reward: Whether to add a length-based reward term (disabled by default). 0=off, 1=on, 2=half length reward.
+            length_reward_max_len: Legacy name for the reward-length denominator. Kept for backward compatibility.
+            reward_max_length: Dedicated reward-length denominator. Falls back to ``length_reward_max_len`` or upstream defaults.
+            format_answer_product: Whether to combine format & answer reward multiplicatively instead of additively.
         """
         self.tokenizer = tokenizer  # Store the tokenizer for decoding token IDs
         self.num_examine = num_examine  # the number of batches of decoded responses to print to the console
         self.compute_score = compute_score or default_compute_score
         self.reward_fn_key = reward_fn_key  # Store the key for accessing the data source
+        self.enable_length_reward = int(enable_length_reward)
+
+        try:
+            normalized_reward_max_length = (
+                int(reward_max_length) if reward_max_length is not None else None
+            )
+        except (TypeError, ValueError):
+            normalized_reward_max_length = None
+
+        try:
+            legacy_length_cap = int(length_reward_max_len) if length_reward_max_len is not None else None
+        except (TypeError, ValueError):
+            legacy_length_cap = None
+
+        if legacy_length_cap is None and normalized_reward_max_length is not None:
+            legacy_length_cap = normalized_reward_max_length
+        elif normalized_reward_max_length is None and legacy_length_cap is not None:
+            normalized_reward_max_length = legacy_length_cap
+
+        self.length_reward_max_len = legacy_length_cap
+        self.reward_max_length = normalized_reward_max_length
+        self.format_answer_product = bool(format_answer_product)
+        self.strong_tag = bool(strong_tag)
 
     def __call__(self, data: DataProto, return_dict: bool = False) -> torch.Tensor | dict[str, Any]:
         """We will expand this function gradually based on the available datasets"""
@@ -83,6 +121,32 @@ class NaiveRewardManager(AbstractRewardManager):
             extra_info = data_item.non_tensor_batch.get("extra_info", {})
             num_turns = data_item.non_tensor_batch.get("__num_turns__", None)
             extra_info["num_turns"] = num_turns
+
+            # 将长度奖励相关信息通过 extra_info 传入底层 scorer，避免在管理器重复加成
+            if self.enable_length_reward > 0 and isinstance(data_source, str) and data_source == "iceberg":
+                extra_info = dict(extra_info or {})
+                extra_info["enable_length_reward"] = self.enable_length_reward
+                reward_cap = (
+                    self.reward_max_length
+                    if self.reward_max_length is not None
+                    else self.length_reward_max_len
+                )
+                if reward_cap is not None:
+                    extra_info["reward_max_length"] = reward_cap
+                    # 兼容旧字段，仍然写入 legacy key
+                    extra_info["length_reward_max_len"] = reward_cap
+                extra_info["response_valid_length"] = int(
+                    valid_response_length.item() if hasattr(valid_response_length, "item") else int(valid_response_length)
+                )
+
+            if self.format_answer_product and isinstance(data_source, str) and data_source == "iceberg":
+                extra_info = dict(extra_info or {})
+                extra_info["format_answer_product"] = True
+
+            # 补充 strong_tag 开关到 extra_info（仅 iceberg 使用）
+            if isinstance(extra_info, dict) and isinstance(data_source, str) and data_source == "iceberg":
+                extra_info = dict(extra_info)
+                extra_info["strong_tag"] = self.strong_tag
 
             score = self.compute_score(
                 data_source=data_source,

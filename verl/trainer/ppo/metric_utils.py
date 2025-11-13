@@ -227,7 +227,14 @@ def compute_data_metrics(batch: DataProto, use_critic: bool = True) -> dict[str,
             # skip silently if not numeric or shape mismatched
             pass
 
-    for key in ["format_reward", "answer_reward", "num_look", "num_think", "num_answer"]:
+    for key in [
+        "format_reward",
+        "answer_reward",
+        "length_reward",
+        "num_look",
+        "num_think",
+        "num_answer",
+    ]:
         if key in batch.non_tensor_batch:
             _maybe_add_stats(key, batch.non_tensor_batch[key])
 

@@ -1,0 +1,87 @@
+## 冷启动
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_normal_qwen7b_data_4000_lr1en6_rn4_bs64_4096_1.0/global_step_2100/actor/huggingface/
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_normal_default_loss_data_4000_lr1en6_rn4_bs64_4096_1.0/global_step_2100/actor/huggingface/
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_normal_edit_loss_data_4000_lr1en6_rn4_bs64_4096_1.0/global_step_2200/actor/huggingface
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_normal_qwen7b_data_4000_half_lenrw_lr1en6_rn4_bs64_4096_1.0/global_step_1200/actor/huggingface
+
+## 不同prompt
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_thinking_Qwen2.5-VL-7B-Instruct_no_kl_bs512_prefil/global_step_300/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_Qwen2.5-VL-7B-Instruct_no_kl_bs512_prefil/global_step_300/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_extra_simple_Qwen2.5-VL-7B-Instruct_no_kl_bs512_prefil/global_step_300/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_think_Qwen2.5-VL-32B-Instruct/global_step_200/actor/huggingface/
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_Qwen2.5-VL-32B-Instruct/global_step_600/actor/huggingface
+
+## 原始权重
+
+/data_ali/shunian/models/Qwen2.5-VL-3B-Instruct
+
+/data_ali/shunian/models/Qwen2.5-VL-32B-Instruct
+
+/data_ali/shunian/models/Qwen2.5-VL-7B-Instruct
+
+/data_ali/yurui/result_ckpt/comparison/first7layers_llava_editloss
+
+/data_ali/yurui/result_ckpt/comparison/first7layers_wizard_editloss
+
+
+## 不同model size
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_Qwen2.5-VL-32B-Instruct/global_step_600/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_extra_simple_Qwen2.5-VL-7B-Instruct_no_kl_bs512_prefil/global_step_300/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_extra_simple_Qwen2.5-VL-3B-Instruct/global_step_300/actor/huggingface
+
+
+## 不同原始权重
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_first7layers_llava_editloss/global_step_300/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_first7layers_wizard_editloss/global_step_300/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_first7layers_llava_editloss_20w/global_step_300/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_Qwen2.5-VL-7B-Instruct_no_kl_bs512_prefil/global_step_300/actor/huggingface
+
+## 长度reward
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_first7layers_llava_editloss_lenrw/global_step_300/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_first7layers_llava_editloss/global_step_300/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_Qwen2.5-VL-7B-Instruct_lenrw/global_step_150/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_Qwen2.5-VL-7B-Instruct_no_kl_bs512_prefil/global_step_300/actor/huggingface
+
+## KL
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_first7layers_llava_editloss_lenrw_kl/global_step_300/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_first7layers_llava_editloss_lenrw/global_step_300/actor/huggingface
+
+## rollout number
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_selected_simple_first7layers_llava_editloss_lenrw_lr1en6/global_step_450/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_selected_simple_first7layers_llava_editloss_lenrw_lr1en6_rn16/global_step_200/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_first7layers_llava_editloss_lenrw_lr1en6_rn16/global_step_250/actor/huggingface
+
+## learning rate
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_first7layers_llava_editloss_lenrw_lr1en7/global_step_300/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_first7layers_llava_editloss_lenrw_lr5en6/global_step_300/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_first7layers_llava_editloss_lenrw_lr1en6_rn16/global_step_300/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_first7layers_llava_editloss_lenrw_lr5en7_rn16/global_step_100/actor/huggingface
+
+## 数据改造
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_selected_simple_first7layers_llava_editloss_lenrw_lr1en6/global_step_450/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_first7layers_llava_editloss_lenrw/global_step_300/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_selected_simple_first7layers_llava_editloss_lenrw_lr1en6_rn16/global_step_200/actor/huggingface
+
+/data_ali/shunian/verl/checkpoints/verl_grpo_example_iceberg/qwen2_5_vl_7b_simple_first7layers_llava_editloss_lenrw_lr1en6_rn16/global_step_250/actor/huggingface
