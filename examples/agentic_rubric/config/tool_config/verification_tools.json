@@ -1,0 +1,247 @@
+{
+    "tools": [
+        {
+            "name": "test_runner",
+            "description": "Run test cases against code. Uses private test cases not visible to the policy.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "description": "The code to test"
+                    },
+                    "test_cases": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "input": {
+                                    "type": "string",
+                                    "description": "Test input"
+                                },
+                                "expected_output": {
+                                    "type": "string",
+                                    "description": "Expected output"
+                                }
+                            }
+                        },
+                        "description": "List of test cases to run"
+                    },
+                    "language": {
+                        "type": "string",
+                        "enum": ["python", "javascript"],
+                        "description": "Programming language"
+                    },
+                    "timeout_per_test_ms": {
+                        "type": "integer",
+                        "description": "Timeout per test case in milliseconds",
+                        "default": 5000
+                    }
+                },
+                "required": ["code", "test_cases", "language"]
+            },
+            "returns": {
+                "type": "object",
+                "properties": {
+                    "passed": {
+                        "type": "integer",
+                        "description": "Number of tests passed"
+                    },
+                    "total": {
+                        "type": "integer",
+                        "description": "Total number of tests"
+                    },
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "passed": {"type": "boolean"},
+                                "actual_output": {"type": "string"},
+                                "expected_output": {"type": "string"},
+                                "error": {"type": "string"}
+                            }
+                        }
+                    },
+                    "all_passed": {
+                        "type": "boolean",
+                        "description": "Whether all tests passed"
+                    }
+                }
+            }
+        },
+        {
+            "name": "answer_key_lookup",
+            "description": "Look up the ground truth answer for a question from the answer key database.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "question_id": {
+                        "type": "string",
+                        "description": "Unique identifier for the question"
+                    },
+                    "question_hash": {
+                        "type": "string",
+                        "description": "Hash of the question text for verification"
+                    }
+                },
+                "required": ["question_id"]
+            },
+            "returns": {
+                "type": "object",
+                "properties": {
+                    "answer": {
+                        "type": "string",
+                        "description": "The correct answer"
+                    },
+                    "answer_type": {
+                        "type": "string",
+                        "description": "Type of answer (text, number, code, etc.)"
+                    },
+                    "metadata": {
+                        "type": "object",
+                        "description": "Additional metadata about the answer"
+                    }
+                }
+            }
+        },
+        {
+            "name": "ground_truth_checker",
+            "description": "Check if a response matches the ground truth using various comparison methods.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "response": {
+                        "type": "string",
+                        "description": "The response to check"
+                    },
+                    "ground_truth": {
+                        "type": "string",
+                        "description": "The ground truth to compare against"
+                    },
+                    "comparison_method": {
+                        "type": "string",
+                        "enum": ["exact", "contains", "semantic", "numeric", "code_equivalent"],
+                        "description": "Method to use for comparison",
+                        "default": "exact"
+                    },
+                    "tolerance": {
+                        "type": "number",
+                        "description": "Tolerance for numeric comparison",
+                        "default": 0.01
+                    }
+                },
+                "required": ["response", "ground_truth"]
+            },
+            "returns": {
+                "type": "object",
+                "properties": {
+                    "matches": {
+                        "type": "boolean",
+                        "description": "Whether the response matches"
+                    },
+                    "similarity_score": {
+                        "type": "number",
+                        "description": "Similarity score (0-1)"
+                    },
+                    "details": {
+                        "type": "object",
+                        "description": "Additional comparison details"
+                    }
+                }
+            }
+        },
+        {
+            "name": "code_analyzer",
+            "description": "Analyze code for style, security, and correctness issues.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "description": "The code to analyze"
+                    },
+                    "language": {
+                        "type": "string",
+                        "enum": ["python", "javascript", "java", "cpp"],
+                        "description": "Programming language"
+                    },
+                    "checks": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": ["syntax", "style", "security", "complexity", "documentation"]
+                        },
+                        "description": "Types of checks to perform"
+                    }
+                },
+                "required": ["code", "language"]
+            },
+            "returns": {
+                "type": "object",
+                "properties": {
+                    "issues": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "type": {"type": "string"},
+                                "severity": {"type": "string"},
+                                "message": {"type": "string"},
+                                "line": {"type": "integer"}
+                            }
+                        }
+                    },
+                    "metrics": {
+                        "type": "object",
+                        "properties": {
+                            "lines_of_code": {"type": "integer"},
+                            "cyclomatic_complexity": {"type": "number"},
+                            "maintainability_index": {"type": "number"}
+                        }
+                    },
+                    "passed": {
+                        "type": "boolean",
+                        "description": "Whether all checks passed"
+                    }
+                }
+            }
+        },
+        {
+            "name": "semantic_similarity",
+            "description": "Compute semantic similarity between two texts using embeddings.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "text1": {
+                        "type": "string",
+                        "description": "First text"
+                    },
+                    "text2": {
+                        "type": "string",
+                        "description": "Second text"
+                    },
+                    "model": {
+                        "type": "string",
+                        "description": "Embedding model to use",
+                        "default": "text-embedding-3-small"
+                    }
+                },
+                "required": ["text1", "text2"]
+            },
+            "returns": {
+                "type": "object",
+                "properties": {
+                    "similarity": {
+                        "type": "number",
+                        "description": "Cosine similarity score (0-1)"
+                    },
+                    "is_similar": {
+                        "type": "boolean",
+                        "description": "Whether texts are semantically similar (>0.8)"
+                    }
+                }
+            }
+        }
+    ]
+}

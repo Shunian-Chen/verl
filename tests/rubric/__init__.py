@@ -1,4 +1,4 @@
-# Copyright 2024 Bytedance Ltd. and/or its affiliates
+# Copyright 2025
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,19 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .registry import get_reward_manager_cls, register  # noqa: I001
-from .dapo import DAPORewardManager
-from .naive import NaiveRewardManager
-from .limited import RateLimitedRewardManager
-from .remote import RemoteRewardManager
-from .rubric import RubricRewardManager
-
-__all__ = [
-    "DAPORewardManager",
-    "NaiveRewardManager",
-    "RateLimitedRewardManager",
-    "RemoteRewardManager",
-    "RubricRewardManager",
-    "register",
-    "get_reward_manager_cls",
-]
+"""Tests for the rubric module."""

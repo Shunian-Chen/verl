@@ -1,0 +1,165 @@
+{
+    "tools": [
+        {
+            "name": "sandbox_fusion",
+            "description": "Execute code in a sandboxed environment. Supports Python, JavaScript, and other languages.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "code": {
+                        "type": "string",
+                        "description": "The code to execute"
+                    },
+                    "language": {
+                        "type": "string",
+                        "enum": ["python", "javascript", "bash"],
+                        "description": "Programming language"
+                    },
+                    "timeout_seconds": {
+                        "type": "integer",
+                        "description": "Execution timeout in seconds",
+                        "default": 30
+                    }
+                },
+                "required": ["code", "language"]
+            },
+            "returns": {
+                "type": "object",
+                "properties": {
+                    "stdout": {
+                        "type": "string",
+                        "description": "Standard output from execution"
+                    },
+                    "stderr": {
+                        "type": "string",
+                        "description": "Standard error from execution"
+                    },
+                    "exit_code": {
+                        "type": "integer",
+                        "description": "Process exit code"
+                    },
+                    "execution_time_ms": {
+                        "type": "number",
+                        "description": "Execution time in milliseconds"
+                    }
+                }
+            }
+        },
+        {
+            "name": "web_search",
+            "description": "Search the web for information",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query"
+                    },
+                    "num_results": {
+                        "type": "integer",
+                        "description": "Number of results to return",
+                        "default": 5
+                    }
+                },
+                "required": ["query"]
+            },
+            "returns": {
+                "type": "object",
+                "properties": {
+                    "results": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "title": {"type": "string"},
+                                "url": {"type": "string"},
+                                "snippet": {"type": "string"}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        {
+            "name": "file_read",
+            "description": "Read contents of a file",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file"
+                    }
+                },
+                "required": ["path"]
+            },
+            "returns": {
+                "type": "object",
+                "properties": {
+                    "content": {
+                        "type": "string",
+                        "description": "File contents"
+                    },
+                    "size_bytes": {
+                        "type": "integer",
+                        "description": "File size in bytes"
+                    }
+                }
+            }
+        },
+        {
+            "name": "file_write",
+            "description": "Write contents to a file",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Content to write"
+                    }
+                },
+                "required": ["path", "content"]
+            },
+            "returns": {
+                "type": "object",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "description": "Whether write succeeded"
+                    },
+                    "bytes_written": {
+                        "type": "integer",
+                        "description": "Number of bytes written"
+                    }
+                }
+            }
+        },
+        {
+            "name": "calculator",
+            "description": "Perform mathematical calculations",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "expression": {
+                        "type": "string",
+                        "description": "Mathematical expression to evaluate"
+                    }
+                },
+                "required": ["expression"]
+            },
+            "returns": {
+                "type": "object",
+                "properties": {
+                    "result": {
+                        "type": "number",
+                        "description": "Calculation result"
+                    }
+                }
+            }
+        }
+    ]
+}

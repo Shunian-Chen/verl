@@ -1,0 +1,122 @@
+# Agentic Rubrics RL Training Configuration
+#
+# This configuration enables training with executable rubrics for reward computation.
+# Use with: python -m verl.trainer.main_ppo --config examples/agentic_rubric/config/rubric_rl_grpo.yaml
+
+# Model configuration
+model:
+  model_name_or_path: "Qwen/Qwen2.5-7B-Instruct"
+  trust_remote_code: true
+  dtype: bfloat16
+
+# Data configuration
+data:
+  # Path to preprocessed dataset with rubrics
+  train_files: "data/tasks_with_rubrics.parquet"
+  # Prompt column in dataset
+  prompt_key: "prompt"
+  # Maximum sequence lengths
+  max_prompt_length: 2048
+  max_response_length: 4096
+  # Tool configuration for policy
+  tool_config_path: "examples/agentic_rubric/config/tool_config/policy_tools.json"
+
+# Reward model configuration
+reward_model:
+  # Use rubric-based reward manager
+  reward_manager: "rubric"
+  # Tool configuration for verification (includes verification-only tools)
+  tool_config_path: "examples/agentic_rubric/config/tool_config/"
+
+# Actor rollout configuration
+actor_rollout_ref:
+  rollout:
+    # Agent loop configuration
+    agent:
+      # Use tool-calling agent loop
+      default_agent_loop: "tool_agent"
+      # Maximum turns for tool interaction
+      max_turns: 10
+      # Enable async reward computation
+      enable_async_reward: true
+    # Sampling parameters
+    temperature: 0.7
+    top_p: 0.95
+    max_new_tokens: 4096
+    # Number of responses per prompt for GRPO
+    n: 4
+
+# GRPO algorithm configuration
+algorithm:
+  # Use GRPO (Group Relative Policy Optimization)
+  name: "grpo"
+  # Discount factor
+  gamma: 1.0
+  # GAE lambda
+  lam: 0.95
+  # KL penalty coefficient
+  kl_coef: 0.1
+  # Clip range for policy updates
+  clip_range: 0.2
+  # Value function clip range
+  vf_clip_range: 0.2
+  # Entropy coefficient
+  entropy_coef: 0.01
+  # Advantage normalization
+  normalize_advantage: true
+
+# Training configuration
+trainer:
+  # Total training steps
+  total_training_steps: 1000
+  # Batch sizes
+  train_batch_size: 32
+  mini_batch_size: 8
+  # Learning rate
+  learning_rate: 1.0e-6
+  # Learning rate schedule
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.1
+  # Gradient settings
+  gradient_accumulation_steps: 4
+  max_grad_norm: 1.0
+  # Save and eval
+  save_steps: 100
+  eval_steps: 50
+  # Logging
+  logging_steps: 10
+  # Checkpointing
+  output_dir: "outputs/rubric_rl_grpo"
+  save_total_limit: 3
+
+# Resource configuration
+resources:
+  # Number of GPUs
+  num_gpus: 8
+  # Distributed settings
+  tp_size: 1
+  pp_size: 1
+  # Memory optimization
+  gradient_checkpointing: true
+  # vLLM settings for rollout
+  vllm:
+    gpu_memory_utilization: 0.85
+    enforce_eager: false
+
+# Logging and monitoring
+logging:
+  # Wandb configuration
+  wandb:
+    enabled: true
+    project: "agentic-rubric-rl"
+    name: "rubric_grpo_qwen2.5_7b"
+    tags: ["rubric", "grpo", "code-generation"]
+  # Console logging level
+  log_level: "INFO"
+
+# Experiment settings
+experiment:
+  # Random seed
+  seed: 42
+  # Resume from checkpoint
+  resume_from_checkpoint: null
