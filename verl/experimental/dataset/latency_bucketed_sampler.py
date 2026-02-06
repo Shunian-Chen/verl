@@ -30,6 +30,17 @@ from typing import Any
 from omegaconf import DictConfig
 from torch.utils.data import Sampler
 
+try:
+    from verl.experimental.dataset.sampler import AbstractSampler
+except Exception:
+    # Keep the sampler importable in lightweight environments where
+    # full verl dependencies are unavailable.
+    class AbstractSampler(Sampler[int]):  # type: ignore[misc, no-redef]
+        def __init__(self, data_source: Sized, data_config: DictConfig | None = None):
+            self.data_source = data_source
+            self.data_config = data_config
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -37,7 +48,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_BUCKET_BOUNDARIES = [1000, 5000, 15000, 30000]  # <1s, 1-5s, 5-15s, 15-30s, >30s
 
 
-class LatencyBucketedSampler(Sampler[int]):
+class LatencyBucketedSampler(AbstractSampler):
     """
     Sampler that groups samples by expected execution latency.
 
@@ -75,9 +86,9 @@ class LatencyBucketedSampler(Sampler[int]):
         data_source: Sized,
         data_config: DictConfig | None = None,
         latency_fn: callable | None = None,
-        batch_size: int = 1,
-        shuffle: bool = False,
-        drop_last: bool = False,
+        batch_size: int | None = None,
+        shuffle: bool | None = None,
+        drop_last: bool | None = None,
         bucket_boundaries: list[int] | None = None,
         num_buckets: int | None = None,
         seed: int | None = None,
@@ -99,16 +110,36 @@ class LatencyBucketedSampler(Sampler[int]):
             num_buckets: Number of buckets (alternative to bucket_boundaries).
             seed: Random seed for reproducibility.
         """
-        self.data_source = data_source
-        self.data_config = data_config
-        self.batch_size = batch_size
-        self.shuffle = shuffle
-        self.drop_last = drop_last
+        super().__init__(data_source=data_source, data_config=data_config)
+
+        sampler_kwargs: dict[str, Any] = {}
+        if data_config is not None and hasattr(data_config, "get"):
+            sampler_cfg = data_config.get("sampler", None)
+            if sampler_cfg is not None and hasattr(sampler_cfg, "get"):
+                raw_kwargs = sampler_cfg.get("kwargs", {}) or {}
+                if hasattr(raw_kwargs, "items"):
+                    sampler_kwargs = dict(raw_kwargs.items())
+
+        self.batch_size = int(
+            batch_size if batch_size is not None else sampler_kwargs.get("batch_size", 1)
+        )
+        self.shuffle = bool(shuffle if shuffle is not None else sampler_kwargs.get("shuffle", False))
+        self.drop_last = bool(drop_last if drop_last is not None else sampler_kwargs.get("drop_last", False))
+
+        if num_buckets is None:
+            num_buckets = sampler_kwargs.get("num_buckets")
+        if bucket_boundaries is None:
+            bucket_boundaries = sampler_kwargs.get("bucket_boundaries")
+        if seed is None:
+            seed = sampler_kwargs.get("seed")
+
+        if bucket_boundaries is not None and not isinstance(bucket_boundaries, list):
+            bucket_boundaries = list(bucket_boundaries)
 
         # Handle num_buckets parameter
         if num_buckets is not None:
-            self.num_buckets = num_buckets
-            self.bucket_boundaries = bucket_boundaries or DEFAULT_BUCKET_BOUNDARIES[: num_buckets - 1]
+            self.num_buckets = int(num_buckets)
+            self.bucket_boundaries = bucket_boundaries or DEFAULT_BUCKET_BOUNDARIES[: self.num_buckets - 1]
         else:
             self.bucket_boundaries = bucket_boundaries or DEFAULT_BUCKET_BOUNDARIES
             self.num_buckets = len(self.bucket_boundaries) + 1
