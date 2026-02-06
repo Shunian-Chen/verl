@@ -53,6 +53,7 @@ class ScoringPrimitive(str, Enum):
     SEMANTIC_SIMILARITY = "semantic_similarity"
     LLM_JUDGE = "llm_judge"
     NUMERIC_COMPARISON = "numeric_comparison"
+    PERFORMANCE_RATIO = "performance_ratio"
 
 
 class EvidenceStatus(str, Enum):

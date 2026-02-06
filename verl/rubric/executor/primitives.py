@@ -508,6 +508,71 @@ class LLMJudgePrimitive(BaseScoringPrimitive):
         return 0.5
 
 
+class PerformanceRatioPrimitive(BaseScoringPrimitive):
+    """
+    Compare model code vs reference code on a single runtime metric.
+
+    Evidence for the same check_id is split by tool_input["role"]:
+      - "model": metric value from the model's code
+      - "reference": metric value from the reference solution
+
+    scoring_config:
+        metric_field: str — field name in tool_output (e.g. "execution_time_ms")
+        direction: "lower_is_better" (default) | "higher_is_better"
+
+    Score formula (lower_is_better):
+        score = min(1.0, reference_value / model_value)
+    Score formula (higher_is_better):
+        score = min(1.0, model_value / reference_value)
+    """
+
+    def score(
+        self,
+        verification_item: VerificationItem,
+        evidence: list[EvidenceRecord],
+        policy_output: str,
+    ) -> float:
+        config = verification_item.scoring_config
+        metric_field = config.get("metric_field", "execution_time_ms")
+        direction = config.get("direction", "lower_is_better")
+
+        model_value = None
+        reference_value = None
+
+        for e in evidence:
+            if e.check_id != verification_item.id or not e.success:
+                continue
+            role = (e.tool_input or {}).get("role", "")
+            if isinstance(e.tool_output, dict):
+                metric = e.tool_output.get(metric_field)
+            else:
+                continue
+            if metric is None:
+                continue
+            try:
+                metric = float(metric)
+            except (ValueError, TypeError):
+                continue
+
+            if role == "model":
+                model_value = metric
+            elif role == "reference":
+                reference_value = metric
+
+        if model_value is None or reference_value is None:
+            return 0.0
+
+        # Avoid division by zero
+        if direction == "lower_is_better":
+            if model_value <= 0:
+                return 1.0 if reference_value >= 0 else 0.0
+            return min(1.0, reference_value / model_value)
+        else:  # higher_is_better
+            if reference_value <= 0:
+                return 1.0 if model_value >= 0 else 0.0
+            return min(1.0, model_value / reference_value)
+
+
 # Registry of scoring primitives
 _SCORING_PRIMITIVES: dict[ScoringPrimitive, type[BaseScoringPrimitive]] = {
     ScoringPrimitive.EXACT_MATCH: ExactMatchPrimitive,
@@ -517,6 +582,7 @@ _SCORING_PRIMITIVES: dict[ScoringPrimitive, type[BaseScoringPrimitive]] = {
     ScoringPrimitive.NUMERIC_COMPARISON: NumericComparisonPrimitive,
     ScoringPrimitive.SEMANTIC_SIMILARITY: SemanticSimilarityPrimitive,
     ScoringPrimitive.LLM_JUDGE: LLMJudgePrimitive,
+    ScoringPrimitive.PERFORMANCE_RATIO: PerformanceRatioPrimitive,
 }
 
 

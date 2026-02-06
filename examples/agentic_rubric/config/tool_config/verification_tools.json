@@ -66,6 +66,14 @@
                     "all_passed": {
                         "type": "boolean",
                         "description": "Whether all tests passed"
+                    },
+                    "execution_time_ms": {
+                        "type": "number",
+                        "description": "Total execution time in milliseconds"
+                    },
+                    "max_memory_mb": {
+                        "type": "number",
+                        "description": "Peak memory usage in megabytes"
                     }
                 }
             }

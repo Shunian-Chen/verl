@@ -106,9 +106,6 @@
   experimental/dataset/                                                                                                                                                                     
   latency_bucketed_sampler.py              # 延迟分桶采样器 (新)                                                                                                                            
                                                                                                                                                                                             
-  interactions/                                                                                                                                                                             
-  rubric_interaction.py                    # Rubric 交互 (新)                                                                                                                               
-                                                                                                                                                                                            
   workers/reward_manager/                                                                                                                                                                   
   rubric_manager.py                        # Rubric 奖励管理器 (新)                                                                                                                         
                                                                                                                                                                                             
@@ -168,7 +165,6 @@
   "estimated_latency_ms": 5000                                                                                                                                                              
   },                                                                                                                                                                                        
   "latency_bucket": 2,                     # 预计算的桶 ID (0-4)                                                                                                                            
-  "interaction_kwargs": {"name": "rubric"}                                                                                                                                                  
   }                                                                                                                                                                                         
   }                                                                                                                                                                                         
   ```                                                                                                                                                                                       

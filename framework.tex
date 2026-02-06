@@ -1,0 +1,299 @@
+\section{Introduction}
+
+
+Agents improve by interacting with their environments—learning from consequences rather than relying solely on static demonstrations—and this paradigm is especially powerful when the agent is initialized from a large pretrained language model: pretraining supplies broad prior knowledge, while interaction injects task- and environment-specific signals that refine behavior. Reinforcement learning has therefore begun to deliver tangible gains for language models, but early progress has been dominated by RL from human or AI feedback (RLHF/RLAIF), where an “expert” provides preference judgments that are inherently bottlenecked by limited expertise and bandwidth and can be exploited by policies that optimize the evaluator instead of the underlying objective. A complementary direction is to learn from verifiable environment feedback, where rewards are computed by explicit rules—such as correctness checkers, unit tests, or constraint satisfaction—enabling RL to scale with far less reliance on human priors and, in some cases, even without imitation of existing experience. The promise is to move post-training toward systematic self-improvement, yet the core obstacle remains: beyond narrow domains like math or code, defining reward functions that are both available and faithful is difficult, because many real-world objectives are nuanced, context-dependent, and only partially captured by rigid checkers.
+
+% Requires: \usepackage{booktabs,tabularx,ragged2e}
+\begin{table}[h]
+\centering
+\footnotesize
+\begin{tabular}{llllllllll}
+\toprule
+\textbf{Dim.} &
+\textbf{PT} &
+\textbf{SFT} &
+\textbf{RLHF} &
+\textbf{RLAIF} &
+\textbf{RLVR} &
+\textbf{Rubric RL} &
+\textbf{Agentic Rubric RL} \\
+\midrule
+Signal
+& LM loss
+& Demos
+& Human pref
+& AI pref
+& Verifier
+& Rubric score
+& Rubric + tool evidence \\
+
+Interaction
+& --
+& --
+& low
+& low
+& high
+& optional
+& \textbf{high} \\
+
+Verifiable
+& n/a
+& weak
+& low
+& med
+& \textbf{high}
+& med
+& med--high \\
+
+Generalize
+& priors
+& med
+& med
+& med
+& low--med
+& \textbf{high}
+& \textbf{high+} \\
+
+Bottleneck
+& compute
+& labels
+& humans
+& judge
+& verifiers
+& rubrics
+& I/O + tools \\
+
+Hack risk
+& n/a
+& med
+& high
+& high
+& low
+& med
+& \textbf{lower} \\
+\bottomrule
+\end{tabular}
+
+\vspace{2pt}
+\caption{\textbf{Compact comparison.}
+PT: pretraining; SFT: supervised fine-tuning; RLVR: RL from verifiable rewards.
+Agentic Rubric RL turns rubrics into an executable interface that queries tools/environments and converts grounded evidence into rewards.}
+\label{tab:compact-paradigm}
+\end{table}
+
+
+
+
+\textbf{Rubric RL to Leverage Generalized Rewards}~
+To bridge this gap, recent work has explored rubric-based reinforcement learning, where evaluation is specified by per-sample natural-language criteria (rubrics) that yield more fine-grained rewards than a single preference label. In principle, rubrics can express rich requirements—correctness, style, safety, helpfulness, adherence to constraints—while remaining flexible across tasks. In practice, however, high-quality rubrics typically require expert effort to write, which is expensive. As a result, many rubrics are synthesized automatically. We argue that purely synthetic rubrics inherit key limitations of RLHF/RLAIF: the feedback may be insufficiently professional, overly subjective, and vulnerable to being “hacked” by policies that learn superficial cues. More importantly, synthetic rubric learning often remains text-in/text-out: it weakly couples the policy to external environments and tools, missing the very interaction signals that make agents improve.
+
+\textbf{Ours: RL with Agentic Rubrics}~
+This paper proposes Agentic Rubrics, a framework that treats the rubric not merely as an instruction for scoring, but as a language interface that actively links the agent to the environment. Concretely, a rubric functions as “glue” between agents and heterogeneous environment/tool feedback. The rubric orchestrates calls to external tools (environments), interprets their outputs, and converts the resulting evidence into verifiable reward signals—binary or scalar—that can be optimized by reinforcement learning. Through this design, we transform a passive language-model training setup into an interactive self-improvement loop: a policy model generates actions; an environment layer (tools) produces grounded signals; and an agentic rubric mediates the interaction and reward construction in natural language. In this sense, Agentic Rubrics elevate “rubrics” from static evaluators to executable, environment-coupled reward programs expressed in language.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\linewidth]{iclr2026/AgenticRubrics.jpeg}
+    \caption{Caption}
+    \label{fig:placeholder}
+\end{figure}
+
+\textbf{Implementing RL with Agentic Rubrics}
+Operationalizing this interaction-centric training introduces systems challenges. Modern tool ecosystems (e.g., via standardized tool servers) exhibit highly variable latency: different tools return feedback at different speeds, and within a single training batch, per-example turnaround times can diverge substantially. Naïvely synchronizing on the slowest tool inflates I/O cost and reduces throughput, undermining the scalability that motivates environment-based learning in the first place. To address this, we introduce a time-bucketing mechanism that groups training examples by estimated feedback latency, enabling more efficient batching and reducing idle wait. This simple principle—train together what returns together—substantially improves the practicality of large-scale, tool-mediated reinforcement learning.
+
+
+\textbf{Significance of Agentic Rubrics}~
+Beyond algorithmic and systems contributions, Agentic Rubrics points to a broader shift in how we scale AI: from \textit{architecture engineering}, \textit{prompt engineering} and\textit{ context engineering} toward \textbf{environment engineering}. If the agent’s capability is bounded not only by its parameters but also by the richness of interactions it can execute and verify, then expanding and standardizing environments becomes a primary scaling axis. By providing a unified natural-language rubric interface for environment interaction and reward construction—along with an efficient tool-serving and latency-aware training design—Agentic Rubrics offers a path to generalizing reinforcement learning beyond domains with handcrafted checkers. As environments scale in coverage and reliability, we expect agentic rubrics to scale with them, pushing self-improving agents toward increasingly general competence.
+
+
+% =========================================================
+% Framework (Scheme A): Agentic Rubrics
+% =========================================================
+
+\section{Problem Formulation \& Framework}
+\label{sec:framework}
+
+We present \textbf{Agentic Rubrics}, a framework that transforms evaluation from a static, text-based judgment task into a dynamic, environment-coupled verification process.
+In this section, we formalize the interaction setup (\S\ref{sec:setup}), define the system architecture (\S\ref{sec:architecture}), and specify the environment interface that enables auditable evidence collection (\S\ref{sec:env_interface}).
+
+\subsection{Problem Setup}
+\label{sec:setup}
+
+We consider a task defined by an input distribution $x \sim \mathcal{D}$ (e.g., prompts, instructions) and an environment $e$ that exposes a set of executable tools $\mathcal{T}_e$.
+A policy model $\pi_\theta$ generates an output $y$ conditioned on $x$.
+Unlike standard text generation, the policy may interact with the environment during generation.
+We denote the policy-visible subset of tools as $\mathcal{T}_e^{\text{pol}} \subseteq \mathcal{T}_e$.
+The generation process produces both the final output $y$ and an interaction trace $\tau = \{(t_k, a_k, o_k)\}_{k=1}^{K}$, where $t_k \in \mathcal{T}_e^{\text{pol}}$ is the tool invoked, $a_k$ are the arguments, and $o_k$ is the observation.
+Thus, we sample:
+\begin{equation}
+(y, \tau) \;\sim\; \pi_\theta(\cdot \mid x;\, \mathcal{T}_e^{\text{pol}}).
+\end{equation}
+Our goal is to optimize $\pi_\theta$ via reinforcement learning to maximize a reward $R(x, y)$.
+Standard RLHF relies on a reward model $R_\phi(x, y)$ trained on human preferences, which lacks grounding in objective reality.
+In contrast, we seek a reward derived from \textit{verifiable environment feedback}.
+However, since the policy's trace $\tau$ may be incomplete or unfaithful (e.g., hallucinated calls), we cannot rely solely on self-reported actions.
+Instead, we introduce an independent verification mechanism—the \textbf{Agentic Rubric}—which actively queries the environment to construct grounded rewards.
+
+\subsection{The Agentic Rubrics Architecture}
+\label{sec:architecture}
+
+The framework decouples \textit{acting} (Policy) from \textit{evaluating} (Rubric), ensuring that evaluation is both rigorous and difficult to "game." The architecture consists of four distinct layers:
+
+\paragraph{1. The Policy Layer ($\pi_\theta$).}
+The agent being trained. It observes the input $x$ and interacts with tools $\mathcal{T}_e^{\text{pol}}$ to solve the task.
+
+\paragraph{2. The Environment Layer ($\mathcal{T}_e$).}
+The ground-truth reality. It provides a unified interface for both the policy and the evaluation system.
+Crucially, the environment may expose privileged tools for verification ($\mathcal{T}_e^{\text{ver}}$) that are hidden from the policy (e.g., access to private test cases, answer keys, or expensive simulators).
+The full tool set available for evaluation is $\mathcal{T}_e^{\text{rub}} = \mathcal{T}_e^{\text{pol}} \cup \mathcal{T}_e^{\text{ver}}$.
+
+\paragraph{3. The Rubric Generator ($\mathcal{G}_\psi$).}
+A model that acts as a "compiler." It takes the natural language intent of the task $x$ and the schemas of available tools $\mathcal{T}_e^{\text{rub}}$, and compiles them into an \textit{executable rubric program} $\rho$.
+Formally, $\rho$ is a structured object specifying a checklist of verification steps.
+\textbf{Crucially, the rubric $\rho$ is generated without access to the policy's output $y$ or trace $\tau$.}
+This independence ensures that the evaluation criteria are objective and not tailored to specific model failures or hallucinations.
+
+\paragraph{4. The Rubric Executor ($\mathcal{R}$).}
+A deterministic engine that runs the program $\rho$.
+It orchestrates tool calls to collect independent evidence $\mathcal{E}$ and aggregates this evidence into a scalar reward:
+\begin{equation}
+R(x, y) = \mathcal{R}(x, y, \rho; \mathcal{T}_e^{\text{rub}}).
+\end{equation}
+The executor acts as the bridge between the static rubric definition and the dynamic environment.
+
+\subsection{The Environment Interface and Evidence}
+\label{sec:env_interface}
+
+A core contribution of our framework is treating the environment not just as a state-machine for the agent, but as a \textit{provider of evidence} for the evaluator.
+We formalize this through a minimal \textbf{Environment Contract} and the concept of \textbf{Evidence Records}.
+
+\paragraph{Environment Contract.}
+To support generalized Agentic Rubrics, an environment must satisfy three properties:
+\begin{enumerate}
+    \item \textbf{Discovery:} It must expose tool schemas (names, arguments, return types) in a machine-readable format. This allows the Generator $\mathcal{G}_\psi$ to synthesize valid tool calls dynamically.
+    \item \textbf{Invocation:} It must support stateless or session-based execution of tool calls originating from the Rubric Executor.
+    \item \textbf{Provenance:} It must provide metadata for every execution (latency, timestamps, exact return values) to ensure auditability.
+\end{enumerate}
+
+\paragraph{Evidence Records ($\mathcal{E}$).}
+Unlike text-based judges that evaluate $y$ directly, our executor evaluates $y$ against a set of \textit{Evidence Records}.
+An evidence record $e_j \in \mathcal{E}$ is a structured artifact obtained by executing a tool call specified in the rubric.
+It encapsulates the "ground truth" for a specific verification check.
+\begin{equation}
+\mathcal{E} = \{ e_1, \dots, e_J \}, \quad \text{where } e_j = \mathsf{ToolCall}(t_j, \text{args}_j) \in \text{Space}(\mathcal{T}_e^{\text{rub}}).
+\end{equation}
+By explicitly modeling evidence, we shift the burden of evaluation from "is this text plausible?" (subjective) to "is this text consistent with the evidence?" (objective).
+
+\subsection{Definition of an Executable Rubric}
+\label{sec:rubric_def}
+
+Finally, we formally define the \textbf{Executable Rubric} $\rho$.
+It is not merely a textual description of quality, but a programmatic specification comprising three components:
+\begin{equation}
+\rho = \langle \mathcal{V}, \Phi, \mathsf{Agg} \rangle
+\end{equation}
+\begin{itemize}
+    \item \textbf{Verification Checklist ($\mathcal{V}$):} A set of distinct requirements $\{v_1, \dots, v_J\}$ derived from $x$. Each $v_j$ defines \textit{what} to verify (e.g., "Check calculation accuracy", "Verify citation existence").
+    \item \textbf{Evidence Plans ($\Phi$):} For each check $v_j$, $\Phi$ specifies a function $\phi_j(y, \mathcal{T}_e^{\text{rub}})$ that determines which tools to call to gather necessary evidence. This may involve extracting parameters from $y$ (e.g., extracting a URL to crawl) or independent verification (e.g., running a unit test).
+    \item \textbf{Aggregation Logic ($\mathsf{Agg}$):} A rule set for combining individual check results into a final score, allowing for hard constraints (gates) and weighted trade-offs.
+\end{itemize}
+
+This structured definition ($\rho$) serves as the interface between the generation method (how we create $\rho$) and the execution method (how we run $\rho$), which we detail in Section \ref{sec:method}.
+
+\section{Methodology}
+\label{sec:method}
+
+We structure the lifecycle of Agentic Rubrics into two distinct phases:
+(1) \textbf{Offline Rubric Synthesis:} During data preparation, we synthesize executable rubric programs $\rho$ for the training dataset, decoupling "problem formulation" from policy parameters.
+(2) \textbf{Online Reinforcement Learning:} During training, the policy generates outputs and interaction traces, which are then evaluated by the executor using the pre-computed rubrics to provide feedback for optimization.
+
+\subsection{Phase 1: Offline Rubric Synthesis (Data Preparation)}
+\label{sec:offline_synthesis}
+
+Before training begins, we enrich the dataset $\mathcal{D} = \{x_i\}$ by generating an executable rubric $\rho_i$ for each instance. This offline process ensures that evaluation criteria are fixed, objective, and independent of the policy's evolving behavior.
+
+We employ a strong "teacher" model (e.g., GPT-4o or a specialized generator $\mathcal{G}_\psi$) to synthesize rubrics in two steps:
+
+\paragraph{Step 1: Intent Extraction.}
+The generator analyzes $x$ to determine the evaluation intent $d$, identifying constraints and success criteria independent of available tools (e.g., ``The solution must be a valid Python script that sorts the list in $O(n \log n)$ time'').
+
+\paragraph{Step 2: Tool Compilation.}
+Conditioned on the intent $d$ and the environment's tool schemas $\mathcal{T}_e^{\text{rub}}$, the generator compiles an executable program $\rho$.
+\begin{equation}
+\rho_i \sim \mathcal{G}_\psi(\cdot \mid x_i, \mathcal{T}_e^{\text{rub}}).
+\end{equation}
+The resulting rubric $\rho_i$ contains a checklist $\mathcal{V}$ and evidence collection plans $\Phi$.
+Crucially, since this happens offline, we also estimate the expected execution latency $L(\rho_i)$ for each rubric. This metadata allows us to bucket training samples by computational cost, optimizing throughput during the online phase.
+
+The outcome is an enriched dataset $\mathcal{D}' = \{(x_i, \rho_i, L_i)\}_{i=1}^N$ ready for training.
+
+\subsection{Phase 2: Online Reinforcement Learning}
+\label{sec:online_training}
+
+In the online phase, we optimize the policy $\pi_\theta$ using the pre-computed rubrics. The interaction loop for a single batch proceeds as follows:
+
+\paragraph{1. Policy Rollout (Action).}
+Given inputs $x$, the policy $\pi_\theta$ interacts with the environment (using policy-visible tools $\mathcal{T}_e^{\text{pol}}$) to produce a response $y$ and an interaction trace $\tau$.
+\begin{equation}
+(y, \tau) \sim \pi_\theta(\cdot \mid x; \mathcal{T}_e^{\text{pol}}).
+\end{equation}
+Here, $\tau$ represents the sequence of tool calls and observations made by the agent \textit{attempting} to solve the task.
+
+\paragraph{2. Rubric Execution (Evaluation).}
+The Executor $\mathcal{R}$ evaluates the policy's performance. It takes the problem $x$, the candidate answer $y$, the agent's trace $\tau$, and the pre-computed rubric $\rho$ as input.
+\begin{equation}
+\mathcal{E}, R = \mathcal{R}(x, y, \tau, \rho; \mathcal{T}_e^{\text{rub}}).
+\end{equation}
+The execution process involves:
+\begin{itemize}
+    \item \textbf{Trace Analysis:} The rubric may specify checks on $\tau$ (e.g., ``Did the agent call the calculator?'' or ``Were there redundant API calls?'').
+    \item \textbf{Independent Evidence Collection:} The executor runs the evidence plans in $\rho$ using $\mathcal{T}_e^{\text{rub}}$. This might involve re-running the agent's code, querying a ground-truth database, or running adversarial tests.
+    \item \textbf{Scoring:} The collected evidence $\mathcal{E}$ is compared against requirements using the scoring primitives defined in $\rho$.
+\end{itemize}
+
+\paragraph{3. Reward Aggregation.}
+The individual check scores are aggregated into a final scalar reward $R(x, y, \tau)$ using the logic defined in $\rho$ (including hard gates for safety or correctness).
+
+\paragraph{4. Optimization.}
+We effectively maximize the expected reward objective:
+\begin{equation}
+J(\theta) = \mathbb{E}_{(x, \rho) \sim \mathcal{D}', (y, \tau) \sim \pi_\theta}[R(x, y, \tau)].
+\end{equation}
+We employ standard policy gradient methods (e.g., PPO or GRPO) to update $\theta$.
+
+\subsection{Algorithm and Systems Optimization}
+\label{sec:algorithm}
+
+To handle the high variance in environment interaction times (e.g., code execution vs. web browsing), we utilize the latency estimates $L_i$ computed in Phase 1.
+We organize the dataset $\mathcal{D}'$ into ``time buckets.'' During training, batches are sampled from a single bucket, ensuring that tasks within a batch have similar execution horizons. This prevents the GPU from idling while waiting for a single long-running task to complete.
+
+The full procedure is summarized in Algorithm \ref{alg:rubric_rl}.
+
+\begin{algorithm}[h]
+\caption{Agentic Rubric RL (Offline Synthesis + Online Training)}
+\label{alg:rubric_rl}
+\begin{algorithmic}[1]
+\State \textbf{Phase 1: Offline Data Preparation}
+\For{each instance $x_i$ in dataset $\mathcal{D}$}
+    \State Inspect environment tools $\mathcal{T}_e^{\text{rub}}$.
+    \State Generate rubric $\rho_i \leftarrow \mathcal{G}_\psi(x_i, \mathcal{T}_e^{\text{rub}})$.
+    \State Estimate latency $L_i$ based on $\rho_i$.
+    \State Store $(x_i, \rho_i, L_i)$ in bucketed replay buffer $\mathcal{D}'$.
+\EndFor
+
+\State \textbf{Phase 2: Online Training Loop}
+\For{epoch $1, \dots, E$}
+    \For{each latency-bucketed batch $B \subset \mathcal{D}'$}
+        \State \textbf{// Policy Rollout}
+        \State Generate $(y_i, \tau_i) \sim \pi_\theta(x_i)$ for all $i \in B$.
+        
+        \State \textbf{// Executor (runs in parallel thread pool)}
+        \For{$(x_i, y_i, \tau_i, \rho_i)$ in parallel}
+            \State Execute rubric: $\mathcal{E}_i, r_i \leftarrow \mathcal{R}(x_i, y_i, \tau_i, \rho_i)$.
+        \EndFor
+        
+        \State \textbf{// Optimization}
+        \State Update $\pi_\theta$ using rewards $\{r_i\}$ via PPO/GRPO.
+    \EndFor
+\EndFor
+\end{algorithmic}
+\end{algorithm}

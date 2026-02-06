@@ -1,0 +1,107 @@
+# CCPlus-1x-Optimized Agentic Rubrics RL Training Configuration
+#
+# Dataset: ccplus-1x-optimized (competitive programming with time/memory optimization)
+# Reward signals: correctness (gate), time efficiency ratio, memory efficiency ratio
+#
+# Usage:
+#   Step 1: python examples/agentic_rubric/data_preprocess/preprocess_ccplus.py \
+#               --input_path /path/to/ccplus/parquet \
+#               --output_dir examples/agentic_rubric/data/ccplus/
+#   Step 2: python -m verl.trainer.main_ppo \
+#               --config examples/agentic_rubric/config/ccplus_rl_grpo.yaml
+
+# Model configuration
+model:
+  model_name_or_path: "Qwen/Qwen2.5-7B-Instruct"
+  trust_remote_code: true
+  dtype: bfloat16
+
+# Data configuration
+data:
+  train_files: "examples/agentic_rubric/data/ccplus/train.parquet"
+  prompt_key: "prompt"
+  dataloader_num_workers: 0
+  sampler:
+    class_path: "verl.experimental.dataset.latency_bucketed_sampler"
+    class_name: "LatencyBucketedSampler"
+    kwargs:
+      num_buckets: 5
+  # Competitive programming descriptions can be long
+  max_prompt_length: 4096
+  max_response_length: 4096
+  tool_config_path: "examples/agentic_rubric/config/tool_config/policy_tools.json"
+
+# Reward model configuration
+reward_model:
+  reward_manager: "rubric"
+  tool_config_path: "examples/agentic_rubric/config/tool_config/"
+
+# Actor rollout configuration
+actor_rollout_ref:
+  rollout:
+    agent:
+      default_agent_loop: "tool_agent"
+      max_turns: 10
+      enable_async_reward: true
+    temperature: 0.7
+    top_p: 0.95
+    max_new_tokens: 4096
+    n: 4
+
+# GRPO algorithm configuration
+algorithm:
+  name: "grpo"
+  gamma: 1.0
+  lam: 0.95
+  kl_coef: 0.1
+  clip_range: 0.2
+  vf_clip_range: 0.2
+  entropy_coef: 0.01
+  normalize_advantage: true
+
+# Training configuration
+trainer:
+  total_training_steps: 1000
+  train_batch_size: 32
+  mini_batch_size: 8
+  learning_rate: 1.0e-6
+  lr_scheduler_type: "cosine"
+  warmup_ratio: 0.1
+  gradient_accumulation_steps: 4
+  max_grad_norm: 1.0
+  save_steps: 100
+  eval_steps: 50
+  logging_steps: 10
+  output_dir: "outputs/rubric_rl_grpo_ccplus"
+  save_total_limit: 3
+  logger:
+    - "console"
+    - "swanlab"
+
+# Resource configuration
+resources:
+  num_gpus: 8
+  tp_size: 1
+  pp_size: 1
+  gradient_checkpointing: true
+  vllm:
+    gpu_memory_utilization: 0.85
+    enforce_eager: false
+
+# Logging and monitoring
+logging:
+  wandb:
+    enabled: false
+    project: "agentic-rubric-rl"
+    name: "rubric_grpo_ccplus"
+    tags: ["rubric", "grpo", "ccplus", "competitive-programming"]
+  swanlab:
+    enabled: true
+    project: "agentic-rubric-rl"
+    name: "rubric_grpo_ccplus"
+  log_level: "INFO"
+
+# Experiment settings
+experiment:
+  seed: 42
+  resume_from_checkpoint: null

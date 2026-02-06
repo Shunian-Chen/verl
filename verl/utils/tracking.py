@@ -507,3 +507,95 @@ class ValidationGenerationsLogger:
         self.writer.add_text("val/generations", text_content, step)
         # Flush to ensure data is written
         self.writer.flush()
+
+
+@dataclasses.dataclass
+class RubricSampleLogger:
+    """Log per-sample rubric execution details as SwanLab/WandB tables.
+
+    Converts reward_extra_infos_dict into a flat table with one row per sample,
+    expanding nested check_scores into individual columns.
+    """
+
+    def log(self, loggers, reward_extra_infos_dict: dict, step: int):
+        """Log rubric per-sample data to tracking backends.
+
+        Args:
+            loggers: Dict of active logger backends (from Tracking.logger).
+            reward_extra_infos_dict: Dict of lists from rubric reward manager.
+                Expected keys: rubric_id, check_scores, gate_passed,
+                total_latency_ms, evidence_count, reward.
+            step: Current training step.
+        """
+        if not reward_extra_infos_dict:
+            return
+
+        # Determine batch size from any list-valued key
+        batch_size = 0
+        for v in reward_extra_infos_dict.values():
+            if isinstance(v, (list, tuple)):
+                batch_size = len(v)
+                break
+        if batch_size == 0:
+            return
+
+        # Collect all check_score column names from the first non-None entry
+        check_columns: list[str] = []
+        check_scores_list = reward_extra_infos_dict.get("check_scores", [])
+        for cs in check_scores_list:
+            if isinstance(cs, dict):
+                check_columns = sorted(cs.keys())
+                break
+
+        # Build rows
+        headers = (
+            ["step", "rubric_id"]
+            + check_columns
+            + ["gate_passed", "total_latency_ms", "evidence_count", "reward_score"]
+        )
+        rows = []
+        for i in range(batch_size):
+            row: list = [step]
+            # rubric_id
+            rubric_ids = reward_extra_infos_dict.get("rubric_id", [])
+            row.append(rubric_ids[i] if i < len(rubric_ids) else "")
+            # check score columns
+            cs = check_scores_list[i] if i < len(check_scores_list) else {}
+            if isinstance(cs, dict):
+                for col in check_columns:
+                    row.append(round(cs.get(col, 0.0), 4))
+            else:
+                row.extend([0.0] * len(check_columns))
+            # gate_passed
+            gate_list = reward_extra_infos_dict.get("gate_passed", [])
+            row.append(bool(gate_list[i]) if i < len(gate_list) else False)
+            # total_latency_ms
+            lat_list = reward_extra_infos_dict.get("total_latency_ms", [])
+            row.append(round(float(lat_list[i]), 1) if i < len(lat_list) else 0.0)
+            # evidence_count
+            ev_list = reward_extra_infos_dict.get("evidence_count", [])
+            row.append(int(ev_list[i]) if i < len(ev_list) else 0)
+            # reward_score
+            rw_list = reward_extra_infos_dict.get("reward", [])
+            row.append(round(float(rw_list[i]), 4) if i < len(rw_list) else 0.0)
+            rows.append(row)
+
+        if "swanlab" in loggers:
+            self._log_to_swanlab(headers, rows, step)
+        if "wandb" in loggers:
+            self._log_to_wandb(headers, rows, step)
+
+    def _log_to_swanlab(self, headers: list[str], rows: list[list], step: int):
+        import swanlab
+
+        table = swanlab.echarts.Table()
+        table.add(headers=headers, rows=rows)
+        swanlab.log({"rubric/sample_details": table}, step=step)
+
+    def _log_to_wandb(self, headers: list[str], rows: list[list], step: int):
+        import wandb
+
+        if wandb.run is None:
+            return
+        table = wandb.Table(columns=headers, data=rows)
+        wandb.log({"rubric/sample_details": table}, step=step)
