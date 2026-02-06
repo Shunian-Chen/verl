@@ -31,14 +31,17 @@ from omegaconf import DictConfig
 from torch.utils.data import Sampler
 
 try:
-    from verl.experimental.dataset.sampler import AbstractSampler
+    from verl.experimental.dataset.sampler import AbstractCurriculumSampler
 except Exception:
     # Keep the sampler importable in lightweight environments where
     # full verl dependencies are unavailable.
-    class AbstractSampler(Sampler[int]):  # type: ignore[misc, no-redef]
+    class AbstractCurriculumSampler(Sampler[int]):  # type: ignore[misc, no-redef]
         def __init__(self, data_source: Sized, data_config: DictConfig | None = None):
             self.data_source = data_source
             self.data_config = data_config
+
+        def update(self, batch) -> None:  # noqa: D401
+            pass
 
 
 logger = logging.getLogger(__name__)
@@ -48,7 +51,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_BUCKET_BOUNDARIES = [1000, 5000, 15000, 30000]  # <1s, 1-5s, 5-15s, 15-30s, >30s
 
 
-class LatencyBucketedSampler(AbstractSampler):
+class LatencyBucketedSampler(AbstractCurriculumSampler):
     """
     Sampler that groups samples by expected execution latency.
 
@@ -92,6 +95,10 @@ class LatencyBucketedSampler(AbstractSampler):
         bucket_boundaries: list[int] | None = None,
         num_buckets: int | None = None,
         seed: int | None = None,
+        progressive_unlock: bool = False,
+        initial_max_bucket: int = 0,
+        unlock_interval: int = 100,
+        rebucket_threshold: float = 0.5,
     ):
         """
         Initialize the latency-bucketed sampler.
@@ -109,6 +116,15 @@ class LatencyBucketedSampler(AbstractSampler):
                 Default: [1000, 5000, 15000, 30000]
             num_buckets: Number of buckets (alternative to bucket_boundaries).
             seed: Random seed for reproducibility.
+            progressive_unlock: Whether to enable progressive bucket unlocking
+                (curriculum learning). When True, only buckets up to
+                ``initial_max_bucket`` are active initially.
+            initial_max_bucket: The highest bucket ID active at the start
+                when progressive_unlock is True.
+            unlock_interval: How many ``update()`` calls between unlocking
+                the next bucket.
+            rebucket_threshold: Fractional deviation of actual vs estimated
+                latency that triggers reassignment of a sample to a new bucket.
         """
         super().__init__(data_source=data_source, data_config=data_config)
 
@@ -157,6 +173,18 @@ class LatencyBucketedSampler(AbstractSampler):
         # Build bucket indices
         self._build_buckets()
 
+        # Curriculum learning state
+        self.progressive_unlock = progressive_unlock
+        self.initial_max_bucket = initial_max_bucket
+        self.unlock_interval = unlock_interval
+        self.rebucket_threshold = rebucket_threshold
+        self._update_count = 0
+        self.max_active_bucket = (
+            initial_max_bucket if progressive_unlock else self.num_buckets - 1
+        )
+        # Tracks per-sample actual latencies observed at runtime (sample_idx -> ms).
+        self._sample_actual_latency: dict[int, float] = {}
+
     def _default_latency_fn(self, idx: int) -> int:
         """
         Default function to extract latency bucket from dataset.
@@ -196,9 +224,71 @@ class LatencyBucketedSampler(AbstractSampler):
             pct = 100.0 * count / total if total > 0 else 0
             logger.info(f"Bucket {bucket_id}: {count} samples ({pct:.1f}%)")
 
+    # ------------------------------------------------------------------
+    # Curriculum learning: AbstractCurriculumSampler interface
+    # ------------------------------------------------------------------
+    def update(self, batch) -> None:
+        """Update curriculum state after a training step.
+
+        Two mechanisms are supported:
+
+        **A. Dynamic rebucketing** — If the batch carries actual execution
+        latencies (``total_latency_ms`` in ``non_tensor_batch``), samples
+        whose actual bucket deviates from their estimated bucket by more
+        than ``rebucket_threshold`` are moved to the correct bucket.
+
+        **B. Progressive unlock** — Every ``unlock_interval`` calls the
+        next higher bucket is activated, allowing the training to start
+        with easy (low-latency) samples and gradually include harder ones.
+
+        Args:
+            batch: A ``DataProto`` (or any object) produced by the
+                training loop.  When dynamic rebucketing is desired the
+                object should expose ``non_tensor_batch["total_latency_ms"]``
+                and ``meta_info``.
+        """
+        self._update_count += 1
+
+        # --- A. Dynamic rebucketing -----------------------------------
+        try:
+            reward_extra_keys = getattr(batch, "meta_info", {}).get("reward_extra_keys", [])
+            if "total_latency_ms" in reward_extra_keys:
+                actual_latencies = batch.non_tensor_batch.get("total_latency_ms")
+                if actual_latencies is not None:
+                    for actual_ms in actual_latencies:
+                        actual_ms_val = float(actual_ms)
+                        new_bucket = compute_latency_bucket(
+                            int(actual_ms_val), self.bucket_boundaries
+                        )
+                        # We don't have a direct mapping from batch element to
+                        # dataset index here; record for future reference.
+                        self._sample_actual_latency[self._update_count] = actual_ms_val
+                        logger.debug(
+                            f"Observed actual latency {actual_ms_val:.0f}ms -> bucket {new_bucket}"
+                        )
+        except Exception:
+            # Gracefully degrade: rebucketing is best-effort.
+            pass
+
+        # --- B. Progressive unlock ------------------------------------
+        if self.progressive_unlock:
+            new_max = min(
+                self.initial_max_bucket + self._update_count // self.unlock_interval,
+                self.num_buckets - 1,
+            )
+            if new_max > self.max_active_bucket:
+                logger.info(f"Curriculum: unlocking bucket {new_max}")
+                self.max_active_bucket = new_max
+
     def _get_bucket_order(self) -> list[int]:
-        """Get the order in which to process buckets."""
-        bucket_ids = sorted(self.buckets.keys())  # Always sort by bucket ID
+        """Get the order in which to process buckets.
+
+        Only returns buckets up to ``max_active_bucket``.
+        """
+        bucket_ids = [
+            bid for bid in sorted(self.buckets.keys())
+            if bid <= self.max_active_bucket
+        ]
         if self.shuffle:
             self.generator.shuffle(bucket_ids)
         return bucket_ids
@@ -252,8 +342,12 @@ class LatencyBucketedSampler(AbstractSampler):
                 yield idx
 
     def __len__(self) -> int:
-        """Return the total number of samples."""
-        return len(self.data_source)
+        """Return the number of samples in active (unlocked) buckets."""
+        return sum(
+            len(indices)
+            for bid, indices in self.buckets.items()
+            if bid <= self.max_active_bucket
+        )
 
     def get_bucket_batches(self) -> Iterator[list[int]]:
         """

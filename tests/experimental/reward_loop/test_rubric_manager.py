@@ -183,3 +183,49 @@ async def test_rubric_reward_manager_includes_check_scores():
 
     assert "check_scores" in result["reward_extra_info"]
     assert result["reward_extra_info"]["check_scores"]["check_1"] == 1.0
+
+
+@pytest.mark.asyncio
+async def test_rubric_reward_manager_includes_latency():
+    """Test that total_latency_ms is recorded in extra info."""
+    config = OmegaConf.create({})
+    manager = RubricRewardManager(config=config, tokenizer=DummyTokenizer())
+    manager.executor = DummyExecutor(reward_score=0.9)
+
+    rubric_dict = {
+        "id": "rubric-latency",
+        "task_intent": "test latency",
+        "verification_checklist": [],
+        "evidence_plans": [],
+        "aggregation": {"method": "weighted_sum", "normalize": True},
+        "estimated_latency_ms": 0,
+    }
+    data = create_test_data(rubric_dict)
+
+    result = await manager.run_single(data)
+
+    assert "total_latency_ms" in result["reward_extra_info"]
+    assert result["reward_extra_info"]["total_latency_ms"] == 100
+
+
+@pytest.mark.asyncio
+async def test_rubric_reward_manager_evidence_success_rate():
+    """Test that evidence success rate is computed correctly."""
+    config = OmegaConf.create({})
+    manager = RubricRewardManager(config=config, tokenizer=DummyTokenizer())
+    manager.executor = DummyExecutor()
+
+    rubric_dict = {
+        "id": "rubric-rate",
+        "task_intent": "test rate",
+        "verification_checklist": [],
+        "evidence_plans": [],
+        "aggregation": {"method": "weighted_sum", "normalize": True},
+        "estimated_latency_ms": 0,
+    }
+    data = create_test_data(rubric_dict)
+
+    result = await manager.run_single(data)
+
+    # DummyExecutor returns 1 successful evidence record
+    assert result["reward_extra_info"]["evidence_success_rate"] == 1.0

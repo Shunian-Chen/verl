@@ -21,11 +21,15 @@ based on collected evidence and policy output.
 
 from __future__ import annotations
 
+import logging
+import os
 import re
 from abc import ABC, abstractmethod
 from typing import Any
 
 from verl.rubric.schemas import EvidenceRecord, ScoringPrimitive, VerificationItem
+
+logger = logging.getLogger(__name__)
 
 
 class BaseScoringPrimitive(ABC):
@@ -383,12 +387,55 @@ class LLMJudgePrimitive(BaseScoringPrimitive):
     """
     LLM-based judge scoring primitive.
 
-    Uses an LLM to evaluate the policy output.
+    Uses an LLM to evaluate the policy output against specified criteria.
+    Calls an OpenAI-compatible API to score the output in [0, 1].
 
     Config options:
         - criteria: Evaluation criteria for the LLM judge
-        - rubric: Detailed scoring rubric
+        - rubric: Detailed scoring rubric text
+        - model: Model name to use (default: env ``LLM_JUDGE_MODEL`` or "gpt-4o")
+        - api_key: API key (default: env ``OPENAI_API_KEY``)
+        - api_base: Custom API base URL (default: env ``OPENAI_API_BASE``)
     """
+
+    _LLM_JUDGE_PROMPT = (
+        "You are an expert evaluator. Score the following response on a scale "
+        "from 0.0 to 1.0 based on the criteria below.\n\n"
+        "## Criteria\n{criteria}\n\n"
+        "{rubric_section}"
+        "## Evidence\n{evidence_summary}\n\n"
+        "## Policy Output\n{policy_output}\n\n"
+        "Respond with ONLY a JSON object: {{\"score\": <float between 0.0 and 1.0>}}"
+    )
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._client = None
+
+    def _get_client(self):
+        """Lazy-initialize the OpenAI async client."""
+        if self._client is not None:
+            return self._client
+        try:
+            from openai import OpenAI
+        except ImportError:
+            logger.warning("openai package not installed; LLMJudgePrimitive will return fallback score")
+            return None
+
+        kwargs: dict[str, Any] = {}
+        api_key = os.environ.get("OPENAI_API_KEY")
+        api_base = os.environ.get("OPENAI_API_BASE")
+        if api_key:
+            kwargs["api_key"] = api_key
+        if api_base:
+            kwargs["base_url"] = api_base
+
+        try:
+            self._client = OpenAI(**kwargs)
+        except Exception as exc:
+            logger.warning(f"Failed to create OpenAI client: {exc}")
+            return None
+        return self._client
 
     def score(
         self,
@@ -396,9 +443,68 @@ class LLMJudgePrimitive(BaseScoringPrimitive):
         evidence: list[EvidenceRecord],
         policy_output: str,
     ) -> float:
-        # This is a placeholder - actual implementation would call
-        # an LLM judge API
-        # For now, return a neutral score
+        config = verification_item.scoring_config
+        criteria = config.get("criteria", "Overall quality and correctness.")
+        rubric_text = config.get("rubric", "")
+        model = config.get("model", os.environ.get("LLM_JUDGE_MODEL", "gpt-4o"))
+
+        # Build evidence summary
+        evidence_lines: list[str] = []
+        for e in evidence:
+            if e.check_id == verification_item.id:
+                status = "success" if e.success else "failure"
+                evidence_lines.append(f"- [{status}] {e.tool_name}: {e.tool_output}")
+        evidence_summary = "\n".join(evidence_lines) if evidence_lines else "(no evidence collected)"
+
+        rubric_section = f"## Rubric\n{rubric_text}\n\n" if rubric_text else ""
+
+        prompt = self._LLM_JUDGE_PROMPT.format(
+            criteria=criteria,
+            rubric_section=rubric_section,
+            evidence_summary=evidence_summary,
+            policy_output=policy_output[:4000],  # Truncate to stay within limits
+        )
+
+        return self._call_llm_judge(prompt, model)
+
+    def _call_llm_judge(self, prompt: str, model: str) -> float:
+        """Call the LLM judge and parse the numeric score."""
+        client = self._get_client()
+        if client is None:
+            return 0.5  # Fallback when API is unavailable
+
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+                max_tokens=64,
+            )
+            content = response.choices[0].message.content or ""
+            return self._parse_score(content)
+        except Exception as exc:
+            logger.warning(f"LLM judge call failed: {exc}")
+            return 0.5  # Fallback on error
+
+    @staticmethod
+    def _parse_score(text: str) -> float:
+        """Extract a float score from the LLM response."""
+        import json as _json
+
+        # Try JSON parse first
+        try:
+            data = _json.loads(text)
+            if isinstance(data, dict) and "score" in data:
+                return max(0.0, min(1.0, float(data["score"])))
+        except (_json.JSONDecodeError, ValueError, TypeError):
+            pass
+
+        # Fallback: find a float in the text
+        match = re.search(r"(\d+\.?\d*)", text)
+        if match:
+            value = float(match.group(1))
+            return max(0.0, min(1.0, value))
+
         return 0.5
 
 
